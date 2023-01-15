@@ -305,11 +305,12 @@ class UserSuggestionView(APIView):
         for following in followings:
             for end_user in following.to_user.following.all():
                 if not Follow.objects.filter(from_user=user, to_user=end_user.to_user).exists() and end_user.to_user != user:
-                    users.append(end_user.to_user)
+                    if end_user.to_user not in users:
+                        users.append(end_user.to_user)
         final_users = sorted(users, key=lambda x:users.count(x), reverse=True)
-        for item in final_users:
-            if final_users.count(item) > 1:
-                final_users.remove(item)
+        # for item in final_users:
+        #     if final_users.count(item) > 1:
+        #         final_users.remove(item)
         if len(final_users) > 4:
             final_users = final_users[:5]
         

@@ -7,7 +7,9 @@ from .serializers import (
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
+from rest_framework import generics
 from .models import Post, File, Comment, PostLike, PostSave, PostViews
+from .paginations import HomePagination
 from follow.models import Follow
 from direct.models import Message, Direct
 from accounts.models import User, Activities
@@ -145,7 +147,11 @@ class DetailByCommentsPostView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class PostOfFollowingsView(APIView):
+class PostOfFollowingsView(generics.ListAPIView):
+
+    queryset = Post.objects
+    pagination_class = HomePagination
+
     def get(self, request):
         user = request.user
         following_posts = [follow.to_user.user_posts.all() for follow in user.following.all()]
@@ -156,7 +162,8 @@ class PostOfFollowingsView(APIView):
         
         posts.sort(key= lambda x:x.created, reverse=True)
         serializer = PostWithoutCommentsSerializer(posts, context={'request': request}, many=True)
-        return Response(serializer.data)
+        results = self.paginate_queryset(serializer.data)
+        return self.get_paginated_response(results)
 
 
 class PostGlobalView(APIView):

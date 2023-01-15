@@ -93,7 +93,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
     auth_username = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()
-    comments_count = serializers.SerializerMethodField()
+    # comments_count = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     has_save = serializers.SerializerMethodField()
     has_like = serializers.SerializerMethodField()
@@ -102,7 +102,10 @@ class PostDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ('id', 'user', 'auth_username', 'files', 'caption', 'created', 'likes_count', 'comments_count', 'comments', 'has_save', 'has_like', 'is_following', 'has_own')
+        fields = (
+            'id', 'user', 'auth_username', 'files', 'caption', 'created', 'likes_count',
+            'comments', 'has_save', 'has_like', 'is_following', 'has_own'
+        )
     
     def get_files(self, obj):
         files = obj.files.all()
