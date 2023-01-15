@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework import generics
 from .models import Post, File, Comment, PostLike, PostSave, PostViews
-from .paginations import HomePagination
+from .paginations import HomePagination, GlobalPagination
 from follow.models import Follow
 from direct.models import Message, Direct
 from accounts.models import User, Activities
@@ -166,7 +166,11 @@ class PostOfFollowingsView(generics.ListAPIView):
         return self.get_paginated_response(results)
 
 
-class PostGlobalView(APIView):
+class PostGlobalView(generics.ListAPIView):
+
+    queryset = Post.objects
+    pagination_class = GlobalPagination
+
     def get(self, request):
         auth_user = request.user
         posts = Post.objects.all()
@@ -178,7 +182,8 @@ class PostGlobalView(APIView):
         
         final_posts.sort(key = lambda x: x.post_likes.count(), reverse=True)
         serializer = PostListGlobalSerializer(final_posts, context={'request': request}, many=True)
-        return Response(serializer.data)
+        results = self.paginate_queryset(serializer.data)
+        return self.get_paginated_response(results)
 
 
 class SendPostView(APIView):
