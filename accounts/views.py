@@ -1,3 +1,4 @@
+import random
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,39 +9,85 @@ from .serializers import (
 )
 from post.serializers import PostListSerializer
 from rest_framework import status
-from .models import StoryViews, User, Story, Activities
+from .models import StoryViews, User, Story, Activities, OtpCode
+from utils import send_otp_code
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import AccessToken
 from follow.models import Follow
 
 
 
 
-class UserRegisterView(APIView):
+class UserRegistrationEmailView(APIView):
+    """
+    Register a new user by sending a confirmation code to the provided email address.
+    The user information is received through a POST request. If the information is valid,
+    it is stored in the session for later use.
+    """
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
+
         if serializer.is_valid():
-            serializer.create(serializer.validated_data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
-        value = serializer.data
-        
-        if User.objects.filter(username=value['username']).exists():
-            context = {'message': 'username already exists'}
-            return Response(context, status=status.HTTP_409_CONFLICT)
+            random_code = random.randint(100000, 999999)
+            OtpCode.objects.create(email=serializer.validated_data['email'], code=random_code)
+            send_otp_code(serializer.validated_data['email'], random_code)
 
-        if User.objects.filter(email=value['email']).exists():
-            context = {'message': 'email already exists'}
-            return Response(context, status=status.HTTP_409_CONFLICT)
+            # To request with postman
+            request.session['user_registration_info'] = {
+                'username': serializer.validated_data['username'],
+                'email': serializer.validated_data['email'],
+                'password': serializer.validated_data['password']
+            }
+            return Response({'detail': 'We have sent you a code.'}, status=status.HTTP_200_OK)
         
-        if User.objects.filter(phone_number=value['phone_number']).exists():
-            context = {'message': 'phone number already exists'}
-            return Response(context, status=status.HTTP_409_CONFLICT)
-        
-        if value['password'] != value['password2']:
-            context = {'message': 'passwords must be match'}
-            return Response(context, status=status.HTTP_401_UNAUTHORIZED)
-
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class UserRegistrationConfirmationView(APIView):
+    def post(self, request):
+
+        # Check the code
+        code = request.data.get('code')
+        if not code:
+            return Response({'detail': {'code': 'This field is required.'}}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check user information
+        user_registration_info = request.session.get('user_registration_info') or request.data.get('user_registration_info')
+        if not user_registration_info:
+            return Response({'detail': 'User information is missing or lost.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check the otp code
+        try:
+            otp_code = OtpCode.objects.get(email=user_registration_info['email'], code=code)
+        except OtpCode.DoesNotExist:
+            return Response({'detail': 'The code is incorrect.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not otp_code.is_valid():
+            otp_code.delete()
+            return Response({'detail': 'The code has expired.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        otp_code.delete()
+
+        # Create user
+        user = User.objects.create_user(
+            username=user_registration_info['username'],
+            email=user_registration_info['email'],
+            password=user_registration_info['password']
+        )
+        
+        request.session.flush()
+
+        tokens = {
+            'refresh': str(TokenObtainPairSerializer().get_token(user)),
+            'access': str(AccessToken().for_user(user))
+        }
+        
+        return Response({'tokens': tokens}, status=status.HTTP_200_OK)
+    
+
+# =============================================== Older ===============================================
 
 
 class ProfileView(APIView):

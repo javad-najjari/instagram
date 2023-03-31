@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
 from .forms import UserCreationForm, UserChangeForm
-from .models import User, Story, StoryViews, Activities
+from .models import User, Story, StoryViews, Activities, OtpCode
 
 
 
@@ -11,12 +11,12 @@ class UserAdmin(BaseUserAdmin):
     add_form = UserCreationForm
 
     list_display = ('username', 'email', 'get_followers', 'get_followings', 'has_profile_photo',
-                    'phone_number', 'is_active', 'is_admin'
+                    'is_active', 'is_admin'
                 )
     list_filter = ('is_active',)
     fieldsets = (
         ('Information', {'fields': (
-            'username', 'email', 'phone_number', 'name', 'website', 'gender',
+            'username', 'email', 'name', 'website', 'gender',
             'open_suggestions', 'private', 'profile_photo', 'bio'
             )}),
         ('Permissions', {'fields': ('is_active', 'is_admin', 'last_login', 'password')}),
@@ -37,9 +37,13 @@ class StoryAdmin(admin.ModelAdmin):
 class StoryViewsAdmin(admin.ModelAdmin):
     list_display = ('user', 'get_story')
 
+class OtpCodeAdmin(admin.ModelAdmin):
+    list_display = ('email', 'code', 'is_valid')
+
 
 admin.site.unregister(Group)
 admin.site.register(User, UserAdmin)
 admin.site.register(Story, StoryAdmin)
 admin.site.register(StoryViews, StoryViewsAdmin)
 admin.site.register(Activities)
+admin.site.register(OtpCode, OtpCodeAdmin)

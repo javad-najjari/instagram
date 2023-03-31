@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from .models import User, Story, StoryViews, Activities
 from follow.models import Follow
 
@@ -10,9 +11,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'phone_number', 'email', 'password', 'password2')
+        fields = ('username', 'email', 'password', 'password2')
         extra_kwargs = {
             'password': {'write_only': True},
+            'username': {'validators': [UniqueValidator(queryset=User.objects.all())]},
+            'email': {'validators': [UniqueValidator(queryset=User.objects.all())]},
         }
     
     def create(self, validated_data):
@@ -135,7 +138,7 @@ class EditProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'profile_photo', 'name', 'username', 'website', 'bio', 'email', 'phone_number',
+        fields = ('id', 'profile_photo', 'name', 'username', 'website', 'bio', 'email',
             'gender','open_suggestions')
 
 

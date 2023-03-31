@@ -13,7 +13,6 @@ class Command(BaseCommand):
     def __init__(self, *args, **kwargs):
         super(Command, self).__init__(*args, **kwargs)
         self.fake = Faker()
-        self.phone_numbers = ['09' + ''.join(random.choice(string.digits) for _ in range(9)) for _ in range(count)]
         self.bios = [self.fake.paragraph(nb_sentences=2) for _ in range(count)]
         self.gender = [random.choice(('Male', 'Female', 'Custom', 'None')) for _ in range(count)]
         self.date_joined = [get_time() for _ in range(count)]
@@ -44,7 +43,6 @@ class Command(BaseCommand):
                 print(f'create user: {x+1} / 500')
                 user = User.objects.create_user(
                     username = names[i],
-                    phone_number = self.phone_numbers[i],
                     email = emails[i],
                     password = 'root',
                 )

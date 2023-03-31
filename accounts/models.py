@@ -1,8 +1,10 @@
+import os
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser
+from django.utils import timezone
 from accounts.managers import UserManager
 from datetime import datetime
-import os
 
 
 
@@ -14,7 +16,6 @@ class User(AbstractBaseUser):
         ('none', 'None'),
     )
     username = models.CharField(max_length=50, unique=True)
-    phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=50, blank=True, null=True)
     bio = models.TextField(max_length=150, blank=True)
@@ -28,7 +29,7 @@ class User(AbstractBaseUser):
     is_admin = models.BooleanField(default=False)
     
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ('username', 'phone_number')
+    REQUIRED_FIELDS = ('username',)
 
     objects = UserManager()
 
@@ -60,10 +61,6 @@ class User(AbstractBaseUser):
         return Follow.objects.filter(from_user=self).count()
     get_followings.short_description = 'followings'
 
-
-class OtpCode(models.Model):
-    otp_code = models.CharField(max_length=5)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_code')
 
 
 class Story(models.Model):
@@ -119,6 +116,23 @@ class Activities(models.Model):
             return f'{self.from_user} - {self.to_user} : Follow'
         return f'{self.from_user} - {self.to_user} : Like'
 
+
+
+class OtpCode(models.Model):
+    email = models.CharField(max_length=255)
+    code = models.CharField(max_length=10)
+    created = models.DateTimeField(default=timezone.now)
+
+    def is_valid(self):
+        elapsed_time = timezone.now() - self.created
+        if elapsed_time.seconds > settings.VALID_OTP_CODE_SECONDS:
+            return False
+        return True
+    is_valid.boolean = True
+    is_valid.short_description = 'valid'
+
+    def __str__(self):
+        return self.email
 
 
 from follow.models import Follow
