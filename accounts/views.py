@@ -44,7 +44,6 @@ class UserRegistrationEmailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class UserRegistrationConfirmationView(APIView):
     def post(self, request):
 
@@ -85,9 +84,6 @@ class UserRegistrationConfirmationView(APIView):
         }
         
         return Response({'tokens': tokens}, status=status.HTTP_200_OK)
-    
-
-# =============================================== Older ===============================================
 
 
 class ProfileView(APIView):
@@ -108,6 +104,9 @@ class ProfileView(APIView):
             posts_serializer = PostListSerializer(posts, context={'request': request}, many=True)
             context['posts'] = posts_serializer.data
         return Response(context, status=status.HTTP_200_OK)
+
+
+# =============================================== Older ===============================================
 
 
 class ProfileAndSavedView(APIView):
