@@ -10,6 +10,7 @@ from .serializers import (
 from post.serializers import PostListProfileSerializer
 from rest_framework import status
 from .models import StoryViews, User, Story, Activities, OtpCode
+from .paginations import PostListProfilePagination
 from utils import send_otp_code
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -100,14 +101,14 @@ class UserRegistrationConfirmationView(APIView):
 class ProfileView(APIView):
     """
     Receive: `username`\n
-    Returning: `id`, `username`, `name`, `followers_count`, `following_count`,
-    `profile_photo`, `bio`, `full_access_to_profile`\n
-    And also `posts` if `full_access_to_profile` is true. That's mean:\n
+    Returning: `pagination` and `user` information\n
+    And also user `posts` if `full_access_to_profile` is true. That's mean:\n
     (requested_user = auth_user) `or` (auth_user is following requested_user) `or` (requested_user account is not private)
     """
 
     permission_classes = (IsAuthenticated,)
     serializer_class = ProfileSerializer
+    pagination_class = PostListProfilePagination
 
     def get(self, request, username):
         user = User.objects.filter(username=username).first()
@@ -123,8 +124,12 @@ class ProfileView(APIView):
         
         if full_access_to_profile:
             posts = user.user_posts.all()
-            posts_serializer = PostListProfileSerializer(posts, context={'request': request}, many=True)
+            paginator = self.pagination_class()
+            result_page = paginator.paginate_queryset(posts, request)
+            posts_serializer = PostListProfileSerializer(result_page, context={'request': request}, many=True)
             context['posts'] = posts_serializer.data
+            return paginator.get_paginated_response(context)
+        
         return Response(context, status=status.HTTP_200_OK)
 
 
