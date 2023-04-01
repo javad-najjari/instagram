@@ -49,8 +49,8 @@ class FileSerializer(serializers.ModelSerializer):
         fields = ('id', 'page', 'extension')
 
 
-class PostListSerializer(serializers.ModelSerializer):
-    files = serializers.SerializerMethodField()
+class PostListProfileSerializer(serializers.ModelSerializer):
+    file = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()
     comments_count = serializers.SerializerMethodField()
     has_save = serializers.SerializerMethodField()
@@ -59,11 +59,11 @@ class PostListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ('id', 'files', 'likes_count', 'comments_count', 'page_count', 'has_save', 'has_like', 'multi_files')
+        fields = ('id', 'file', 'likes_count', 'comments_count', 'page_count', 'has_save', 'has_like', 'multi_files')
     
-    def get_files(self, obj):
-        files = obj.files.all()
-        serializer = FileSerializer(files, many=True)
+    def get_file(self, obj):
+        file = obj.files.first()
+        serializer = FileSerializer(file)
         return serializer.data
     
     def get_likes_count(self, obj):
@@ -73,19 +73,13 @@ class PostListSerializer(serializers.ModelSerializer):
         return obj.post_comments.count()
     
     def get_has_save(self, obj):
-        if PostSave.objects.filter(user=self.context['request'].user, post=obj).exists():
-            return True
-        return False
+        return PostSave.objects.filter(user=self.context['request'].user, post=obj).exists()
     
     def get_has_like(self, obj):
-        if PostLike.objects.filter(user=self.context['request'].user, post=obj).exists():
-            return True
-        return False
+        return PostLike.objects.filter(user=self.context['request'].user, post=obj).exists()
     
     def get_multi_files(self, obj):
-        if obj.files.count() > 1:
-            return True
-        return False
+        return obj.files.count() > 1
 
 
 class PostDetailSerializer(serializers.ModelSerializer):

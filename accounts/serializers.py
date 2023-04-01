@@ -28,37 +28,41 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return data
 
 
+class GetCodeSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=50)
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
-    is_allowed = serializers.SerializerMethodField()
-    is_following = serializers.SerializerMethodField()
+    full_access_to_profile = serializers.SerializerMethodField()
     profile_photo = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'name', 'followers_count', 'following_count', 'profile_photo', 'bio', 'is_allowed', 'is_following')
+        fields = (
+            'id', 'username', 'name', 'followers_count', 'following_count', 'profile_photo', 'bio',
+            'full_access_to_profile', 'is_following'
+        )
     
     def get_followers_count(self, obj):
-        followers = obj.followers.all().count()
-        return followers
+        return obj.followers.count()
     
     def get_following_count(self, obj):
-        following = obj.following.all().count()
-        return following
+        return obj.following.count()
     
-    def get_is_allowed(self, obj):
-        return self.context['is_allowed']
+    def get_full_access_to_profile(self, obj):
+        return self.context.get('full_access_to_profile')
     
     def get_profile_photo(self, obj):
         photo = obj.profile_photo
         if photo:
             return photo.url
-        return None
     
     def get_is_following(self, obj):
-        auth_user = self.context['request'].user
-        if Follow.objects.filter(from_user=auth_user, to_user=obj):
+        auth_user = self.context.get('request').user
+        if Follow.objects.filter(from_user=auth_user, to_user=obj).exists():
             return True
         elif auth_user == obj:
             return None

@@ -5,9 +5,9 @@ from rest_framework.response import Response
 from .serializers import (
     UserRegistrationSerializer, ProfileSerializer, ListOfFollowersSerializer, ListOfFollowingSerializer,
     EditProfileSerializer, ChangePasswordSerializer, StorySerializer, EditProfilephotoSerializer,
-    ListForSendPostSerializer, UserSuggestionSerializer, UserActivitiesSerializer
+    ListForSendPostSerializer, UserSuggestionSerializer, UserActivitiesSerializer, GetCodeSerializer
 )
-from post.serializers import PostListSerializer
+from post.serializers import PostListProfileSerializer
 from rest_framework import status
 from .models import StoryViews, User, Story, Activities, OtpCode
 from utils import send_otp_code
@@ -21,12 +21,14 @@ from follow.models import Follow
 
 class UserRegistrationEmailView(APIView):
     """
-    Register a new user by sending a confirmation code to the provided email address.
-    The user information is received through a POST request. If the information is valid,
-    it is stored in the session for later use.
+    Receive: `username`, `email`, `password`, `password2`\n
+    Then send the `confirmation code` to the user's email
     """
+    
+    serializer_class = UserRegistrationSerializer
+
     def post(self, request):
-        serializer = UserRegistrationSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
             random_code = random.randint(100000, 999999)
@@ -44,13 +46,21 @@ class UserRegistrationEmailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
 class UserRegistrationConfirmationView(APIView):
+    """
+    Receive: `code`\n
+    Registering the user and returning the `access token` and the `refresh token`
+    """
+
+    serializer_class = GetCodeSerializer
+
     def post(self, request):
 
         # Check the code
-        code = request.data.get('code')
-        if not code:
-            return Response({'detail': {'code': 'This field is required.'}}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        code = serializer.validated_data['code']
         
         # Check user information
         user_registration_info = request.session.get('user_registration_info') or request.data.get('user_registration_info')
@@ -86,27 +96,37 @@ class UserRegistrationConfirmationView(APIView):
         return Response({'tokens': tokens}, status=status.HTTP_200_OK)
 
 
-class ProfileView(APIView):
-    permission_classes = (IsAuthenticated,)
 
-    def get(self, request, username=None):
-        if username:
-            user = get_object_or_404(User, username=username)
-        else:
-            user = request.user
+class ProfileView(APIView):
+    """
+    Receive: `username`\n
+    Returning: `id`, `username`, `name`, `followers_count`, `following_count`,
+    `profile_photo`, `bio`, `full_access_to_profile`\n
+    And also `posts` if `full_access_to_profile` is true. That's mean:\n
+    (requested_user = auth_user) `or` (auth_user is following requested_user) `or` (requested_user account is not private)
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = ProfileSerializer
+
+    def get(self, request, username):
+        user = User.objects.filter(username=username).first()
+        if user is None:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
         
         is_following = Follow.objects.filter(from_user=request.user, to_user=user).exists()
-        user_allowed_see_profile_full = request.user == user or is_following or not user.private
-        profile_serializer = ProfileSerializer(user, context={'is_allowed': user_allowed_see_profile_full, 'request': request})
+        full_access_to_profile = request.user == user or is_following or not user.private
+        profile_serializer = self.serializer_class(
+            user, context={'full_access_to_profile': full_access_to_profile, 'request': request}
+        )
         context = {'profile': profile_serializer.data}
-        if user_allowed_see_profile_full:
+        
+        if full_access_to_profile:
             posts = user.user_posts.all()
-            posts_serializer = PostListSerializer(posts, context={'request': request}, many=True)
+            posts_serializer = PostListProfileSerializer(posts, context={'request': request}, many=True)
             context['posts'] = posts_serializer.data
         return Response(context, status=status.HTTP_200_OK)
 
-
-# =============================================== Older ===============================================
 
 
 class ProfileAndSavedView(APIView):
@@ -117,12 +137,13 @@ class ProfileAndSavedView(APIView):
         if request.user == user:
             posts = user.user_saves.all()
             new_posts = [post.post for post in posts]
-            profile_serializer = ProfileSerializer(user, context={'is_allowed': True, 'request': request})
-            posts_serializer = PostListSerializer(new_posts, context={'request': request}, many=True)
+            profile_serializer = ProfileSerializer(user, context={'full_access_to_profile': True, 'request': request})
+            posts_serializer = PostListProfileSerializer(new_posts, context={'request': request}, many=True)
             data = {'profile': profile_serializer.data, 'saved': posts_serializer.data}
             return Response(data)
         else:
             return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
 
 
 class FollowersView(APIView):
