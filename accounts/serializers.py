@@ -15,7 +15,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = ('username', 'email', 'password', 'password2')
         extra_kwargs = {
             'password': {'write_only': True},
-            'username': {'validators': [UniqueValidator(queryset=User.objects.all())]},
+            'username': {
+                'validators': [UniqueValidator(queryset=User.objects.all())],
+                'error_messages': {'unique': 'username already exists.'}
+            },
             'email': {'validators': [UniqueValidator(queryset=User.objects.all())]},
         }
     
@@ -73,77 +76,6 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 
-class ListOfFollowersSerializer(serializers.ModelSerializer):
-    username = serializers.SerializerMethodField()
-    name = serializers.SerializerMethodField()
-    profile_photo = serializers.SerializerMethodField()
-    user_id = serializers.SerializerMethodField()
-    auth_username = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Follow
-        fields = ('id', 'username', 'auth_username', 'name', 'profile_photo', 'user_id')
-    
-    def get_username(self, obj):
-        return obj.from_user.username
-    
-    def get_name(self, obj):
-        return obj.from_user.name
-    
-    def get_profile_photo(self, obj):
-        photo = obj.from_user.profile_photo
-        if photo:
-            return photo.url
-        return None
-    
-    def get_user_id(self, obj):
-        return obj.from_user.id
-    
-    def get_auth_username(self, obj):
-        return self.context['request'].user.username
-
-
-
-class ListOfFollowingSerializer(serializers.ModelSerializer):
-    username = serializers.SerializerMethodField()
-    name = serializers.SerializerMethodField()
-    profile_photo = serializers.SerializerMethodField()
-    is_following = serializers.SerializerMethodField()
-    user_id = serializers.SerializerMethodField()
-    auth_username = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Follow
-        fields = ('id', 'username', 'auth_username', 'name', 'profile_photo', 'is_following', 'user_id')
-    
-    def get_username(self, obj):
-        return obj.to_user.username
-    
-    def get_name(self, obj):
-        return obj.to_user.name
-    
-    def get_profile_photo(self, obj):
-        photo = obj.to_user.profile_photo
-        if photo:
-            return photo.url
-        return None
-    
-    def get_is_following(self, obj):
-        user = obj.to_user
-        if Follow.objects.filter(from_user=self.context['request'].user, to_user=user).exists():
-            return True
-        elif self.context['request'].user == user:
-            return None
-        return False
-    
-    def get_user_id(self, obj):
-        return obj.to_user.id
-    
-    def get_auth_username(self, obj):
-        return self.context['request'].user.username
-
-
-
 class EditProfileSerializer(serializers.ModelSerializer):
     profile_photo = serializers.ImageField(read_only=True)
     username = serializers.CharField(required=False, read_only=True)
@@ -161,6 +93,58 @@ class EditProfilePhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('profile_photo',)
+
+
+
+class ListOfFollowersSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='from_user.username')
+    name = serializers.CharField(source='from_user.name')
+    user_id = serializers.IntegerField(source='from_user.id')
+    profile_photo = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Follow
+        fields = ('id', 'username', 'name', 'profile_photo', 'is_following', 'user_id')
+    
+    def get_profile_photo(self, obj):
+        photo = obj.from_user.profile_photo
+        if photo:
+            return photo.url
+    
+    def get_is_following(self, obj):
+        user = obj.to_user
+        if Follow.objects.filter(from_user=self.context['request'].user, to_user=user).exists():
+            return True
+        elif self.context['request'].user == user:
+            return None
+        return False
+
+
+
+class ListOfFollowingSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='to_user.username')
+    name = serializers.CharField(source='to_user.name')
+    user_id = serializers.IntegerField(source='to_user.id')
+    profile_photo = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Follow
+        fields = ('id', 'username', 'name', 'profile_photo', 'is_following', 'user_id')
+    
+    def get_profile_photo(self, obj):
+        photo = obj.to_user.profile_photo
+        if photo:
+            return photo.url
+    
+    def get_is_following(self, obj):
+        user = obj.to_user
+        if Follow.objects.filter(from_user=self.context['request'].user, to_user=user).exists():
+            return True
+        elif self.context['request'].user == user:
+            return None
+        return False
 
 
 

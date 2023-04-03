@@ -2,6 +2,7 @@ import smtplib
 from django.conf import settings
 from email.message import EmailMessage
 from rest_framework.exceptions import ValidationError
+from accounts.models import Follow
 
 
 
@@ -20,4 +21,9 @@ def send_otp_code(email, code):
 def validate_profile_photo_size(image):
     if image.size > 500000:
         raise ValidationError('The maximum file size that can be uploaded is 500 KB.')
+
+
+def is_user_allowed(auth_user, target_user):
+    is_following = Follow.objects.filter(from_user=auth_user, to_user=target_user).exists()
+    return auth_user == target_user or is_following or not target_user.private
 

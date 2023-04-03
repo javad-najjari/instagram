@@ -1,7 +1,6 @@
 from django.urls import path
 from . import views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-# from rest_framework import routers
 
 
 
@@ -12,12 +11,12 @@ urlpatterns = [
     path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('profile/<str:username>/', views.ProfileView.as_view()),
-    path('saved/', views.SavedPostsView.as_view()),
+    path('saved_posts/', views.SavedPostsView.as_view()),
     path('edit/profile/', views.EditProfileView.as_view()),
     path('edit/profile_photo/', views.EditProfilePhotoView.as_view()),
-    # path('<str:username>/followers/', views.FollowersView.as_view()),
-    # path('<str:username>/following/', views.FollowingView.as_view()),
-    # path('accounts/password/change/', views.ChangePasswordView.as_view()),
+    path('<str:username>/followers/', views.FollowersView.as_view()),
+    path('<str:username>/following/', views.FollowingView.as_view()),
+    path('accounts/password/change/', views.ChangePasswordView.as_view()),
     # path('story/<str:username>/', views.StoryView.as_view()),
     # path('story/', views.CreateStoryView.as_view()),
     # path('remove-story/<int:story_id>/', views.RemoveStoryView.as_view()),

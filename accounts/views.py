@@ -10,9 +10,10 @@ from .serializers import (
 from post.serializers import PostListProfileSerializer
 from rest_framework import status
 from .models import StoryViews, User, Story, Activities, OtpCode
-from .paginations import PostListProfilePagination
-from utils import send_otp_code
+from .paginations import PaginateBy6, PaginateBy10
+from utils import send_otp_code, is_user_allowed
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import AccessToken
 from follow.models import Follow
@@ -25,6 +26,7 @@ from django.db import connection, reset_queries
 class UserRegistrationEmailView(APIView):
     """
     Receive: `username`, `email`, `password`, `password2`.\n
+    Remember: User information must be stored in a key named `user_registration_info` for use in the next endpoint.\n
     Then send the `confirmation code` to the user's email.
     """
     
@@ -52,7 +54,7 @@ class UserRegistrationEmailView(APIView):
 
 class UserRegistrationConfirmationView(APIView):
     """
-    Receive: `code`.\n
+    Receive: `code` and key `user_registration_info`.\n
     Registering the user and returning the `access token` and the `refresh token`.
     """
 
@@ -110,7 +112,7 @@ class ProfileView(APIView):
 
     permission_classes = (IsAuthenticated,)
     serializer_class = ProfileSerializer
-    pagination_class = PostListProfilePagination
+    pagination_class = PaginateBy6
 
     def get(self, request, username):
         user = User.objects.filter(username=username).first()
@@ -143,7 +145,7 @@ class SavedPostsView(ListAPIView):
 
     permission_classes = (IsAuthenticated,)
     serializer_class = PostListProfileSerializer
-    pagination_class = PostListProfilePagination
+    pagination_class = PaginateBy6
 
     def get_queryset(self):
         posts = self.request.user.user_saves.select_related('post').all()
@@ -209,34 +211,39 @@ class EditProfilePhotoView(UpdateAPIView, DestroyAPIView):
 
 
 
-class FollowersView(APIView):
+class FollowersView(ListAPIView):
+    """
+    Receive: `username`\n
+    Returning: The list of requested user `followers`. (if you have permission)
+    """
+
     permission_classes = (IsAuthenticated,)
+    serializer_class = ListOfFollowersSerializer
+    pagination_class = PaginateBy10
 
-    def get(self, request, username):
-        user = User.objects.get(username=username)
-        is_following = Follow.objects.filter(from_user=request.user, to_user=user).exists()
-        user_allowed = request.user == user or is_following or not user.private
-        if user_allowed:
-            followers = user.followers.all()
-            serializer = ListOfFollowersSerializer(followers, context={'request': request}, many=True)
-            return Response(serializer.data)
-
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    def get_queryset(self):
+        user = User.objects.get(username=self.kwargs.get('username'))
+        if is_user_allowed(self.request.user, user):
+            return user.followers.all().order_by('id')
+        raise PermissionDenied('You are not allowed to see the list of followers.')
 
 
-class FollowingView(APIView):
+
+class FollowingView(ListAPIView):
+    """
+    Receive: `username`\n
+    Returning: The list of requested user `following`. (if you have permission)
+    """
+
     permission_classes = (IsAuthenticated,)
+    serializer_class = ListOfFollowingSerializer
+    pagination_class = PaginateBy10
 
-    def get(self, request, username):
-        user = User.objects.get(username=username)
-        is_following = Follow.objects.filter(from_user=request.user, to_user=user).exists()
-        user_allowed = request.user == user or is_following or not user.private
-        if user_allowed:
-            following = user.following.all()
-            serializer = ListOfFollowingSerializer(following, context={'request': request}, many=True)
-            return Response(serializer.data)
-
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    def get_queryset(self):
+        user = User.objects.get(username=self.kwargs.get('username'))
+        if is_user_allowed(self.request.user, user):
+            return user.following.all().order_by('id')
+        raise PermissionDenied('You are not allowed to see the list of following.')
 
 
 
@@ -255,6 +262,7 @@ class ChangePasswordView(APIView):
             user.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class StoryView(APIView):
@@ -356,17 +364,17 @@ class ListForSendPostView(APIView):
 
     def get(self, request):
         user = request.user
-        followings = user.following.all()
-        serializer = ListForSendPostSerializer(followings, many=True)
+        following = user.following.all()
+        serializer = ListForSendPostSerializer(following, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class UserSuggestionView(APIView):
     def get(self, request):
         user = request.user
-        followings = user.following.all()
+        following = user.following.all()
         users = []
-        for following in followings:
+        for following in following:
             for end_user in following.to_user.following.all():
                 if not Follow.objects.filter(from_user=user, to_user=end_user.to_user).exists() and end_user.to_user != user:
                     if end_user.to_user not in users:
