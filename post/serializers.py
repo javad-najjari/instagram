@@ -49,6 +49,7 @@ class FileSerializer(serializers.ModelSerializer):
         fields = ('id', 'page', 'extension')
 
 
+# TODO: متدهای این سریالایزر اصلا بهینه نیست . تعداد کوءری های خیلی زیادی به دیتابیس میزنه . باید بعدا درستشون کنم
 class PostListProfileSerializer(serializers.ModelSerializer):
     file = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()

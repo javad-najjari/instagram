@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import (
     UserRegistrationSerializer, ProfileSerializer, ListOfFollowersSerializer, ListOfFollowingSerializer,
-    EditProfileSerializer, ChangePasswordSerializer, StorySerializer, EditProfilephotoSerializer,
+    EditProfileSerializer, ChangePasswordSerializer, StorySerializer, EditProfilePhotoSerializer,
     ListForSendPostSerializer, UserSuggestionSerializer, UserActivitiesSerializer, GetCodeSerializer
 )
 from post.serializers import PostListProfileSerializer
@@ -16,14 +16,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import AccessToken
 from follow.models import Follow
+from rest_framework.generics import ListAPIView, UpdateAPIView, DestroyAPIView
+from django.db import connection, reset_queries
 
 
 
 
 class UserRegistrationEmailView(APIView):
     """
-    Receive: `username`, `email`, `password`, `password2`\n
-    Then send the `confirmation code` to the user's email
+    Receive: `username`, `email`, `password`, `password2`.\n
+    Then send the `confirmation code` to the user's email.
     """
     
     serializer_class = UserRegistrationSerializer
@@ -50,8 +52,8 @@ class UserRegistrationEmailView(APIView):
 
 class UserRegistrationConfirmationView(APIView):
     """
-    Receive: `code`\n
-    Registering the user and returning the `access token` and the `refresh token`
+    Receive: `code`.\n
+    Registering the user and returning the `access token` and the `refresh token`.
     """
 
     serializer_class = GetCodeSerializer
@@ -134,20 +136,76 @@ class ProfileView(APIView):
 
 
 
-class ProfileAndSavedView(APIView):
+class SavedPostsView(ListAPIView):
+    """
+    The user's `saved posts` are displayed in paginated format (6 posts per page).
+    """
+
     permission_classes = (IsAuthenticated,)
+    serializer_class = PostListProfileSerializer
+    pagination_class = PostListProfilePagination
+
+    def get_queryset(self):
+        posts = self.request.user.user_saves.select_related('post').all()
+        return [post.post for post in posts]
+    
+    def get_serializer_context(self):
+        return {'request': self.request}
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+    
+
+
+class EditProfileView(APIView):
+    """
+    Edit user information (except `profile picture`).\n
+    Only these fields can be edited: `name` , `website` , `bio` , `gender` , `open_suggestions`.
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = EditProfileSerializer
 
     def get(self, request):
-        user = request.user
-        if request.user == user:
-            posts = user.user_saves.all()
-            new_posts = [post.post for post in posts]
-            profile_serializer = ProfileSerializer(user, context={'full_access_to_profile': True, 'request': request})
-            posts_serializer = PostListProfileSerializer(new_posts, context={'request': request}, many=True)
-            data = {'profile': profile_serializer.data, 'saved': posts_serializer.data}
-            return Response(data)
-        else:
-            return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        serializer = self.serializer_class(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def put(self, request):
+        serializer = self.serializer_class(instance=request.user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class EditProfilePhotoView(UpdateAPIView, DestroyAPIView):
+    """
+    Edit user's `profile photo`. The maximum file size that can be uploaded is `500 KB`.
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = EditProfilePhotoSerializer
+    http_method_names = ('put', 'delete')
+
+    def get_object(self):
+        return self.request.user
+    
+    def delete(self, request, *args, **kwargs):
+        """ If the user has a `profile picture`, it will be deleted. Otherwise, `error 400` will be returned """
+
+        user = self.get_object()
+        if user.profile_photo:
+            user.profile_photo.delete()
+            return Response({'detail': 'Profile photo deleted successfully.'}, status=status.HTTP_200_OK)
+        
+        return Response(
+            {'detail': 'The user does not have a profile photo to delete.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 
@@ -180,72 +238,6 @@ class FollowingView(APIView):
 
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-
-class EditProfileView(APIView):
-    def get(self, request):
-        user = request.user
-        serializer = EditProfileSerializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    def put(self, request):
-        user = request.user
-        serializer = EditProfileSerializer(instance=user, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class EditProfilephotoView(APIView):
-    def put(self, request):
-        user = request.user
-        serializer = EditProfilephotoSerializer(instance=user, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
-    
-    def delete(self, request):
-        user = request.user
-        user.profile_photo.delete()
-        user.save()
-        return Response(status=status.HTTP_200_OK)
-
-
-# class EditProfilephotoViewSet(viewsets.ModelViewSet):
-#     serializer_class = EditProfilephotoSerializer
-#     # parser_classes = (MultiPartParser, FormParser)
-#     permission_classes = (IsAuthenticated,)
-#     queryset = User.objects.all()
-
-#     def get_queryset(self):
-#         return self.queryset.filter(user=self.request.user)
-
-#     @action(methods=['POST'], detail=True, url_path='upload-image')
-#     def upload_image(self, request, pk=None):
-#         user = User.objects.get(id=pk)
-#         if user != request.user:
-#             return Response(status=status.HTTP_401_UNAUTHORIZED)
-#         serializer = EditProfilephotoSerializer(instance=user, data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(status=status.HTTP_200_OK)
-#         return Response(status=status.HTTP_400_BAD_REQUEST)
-
- 
-#     # def put(self, request):
-#     #     user = request.user
-#     #     serializer = EditProfilephotoSerializer(instance=user, data=request.data)
-#     #     if serializer.is_valid():
-#     #         serializer.save()
-#     #         return Response(serializer.data, status=status.HTTP_200_OK)
-#     #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-#     # def delete(self, request):
-#     #     user = request.user
-#     #     user.profile_photo.delete()
-#     #     user.save()
-#     #     return Response(status=status.HTTP_200_OK)
 
 
 class ChangePasswordView(APIView):

@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from .models import User, Story, StoryViews, Activities
 from follow.models import Follow
+from utils import validate_profile_photo_size
 
 
 
@@ -28,8 +29,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return data
 
 
+
 class GetCodeSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=50)
+
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -69,6 +72,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         return False
 
 
+
 class ListOfFollowersSerializer(serializers.ModelSerializer):
     username = serializers.SerializerMethodField()
     name = serializers.SerializerMethodField()
@@ -97,6 +101,7 @@ class ListOfFollowersSerializer(serializers.ModelSerializer):
     
     def get_auth_username(self, obj):
         return self.context['request'].user.username
+
 
 
 class ListOfFollowingSerializer(serializers.ModelSerializer):
@@ -138,19 +143,25 @@ class ListOfFollowingSerializer(serializers.ModelSerializer):
         return self.context['request'].user.username
 
 
+
 class EditProfileSerializer(serializers.ModelSerializer):
+    profile_photo = serializers.ImageField(read_only=True)
+    username = serializers.CharField(required=False, read_only=True)
+    email = serializers.EmailField(required=False, read_only=True)
 
     class Meta:
         model = User
-        fields = ('id', 'profile_photo', 'name', 'username', 'website', 'bio', 'email',
-            'gender','open_suggestions')
+        fields = ('id', 'profile_photo', 'name', 'username', 'website', 'bio', 'email', 'gender','open_suggestions')
 
 
-class EditProfilephotoSerializer(serializers.ModelSerializer):
+
+class EditProfilePhotoSerializer(serializers.ModelSerializer):
+    profile_photo = serializers.ImageField(validators=[validate_profile_photo_size])
     
     class Meta:
         model = User
         fields = ('profile_photo',)
+
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -207,6 +218,7 @@ class StorySerializer(serializers.ModelSerializer):
         if StoryViews.objects.filter(user=auth_user, story=obj).exists():
             return True
         return False
+
 
 
 class UserSearchSerializer(serializers.ModelSerializer):
