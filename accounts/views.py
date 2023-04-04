@@ -1,11 +1,11 @@
-import random
 from django.shortcuts import get_object_or_404
+from django.db import connection, reset_queries
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import (
     UserRegistrationSerializer, ProfileSerializer, ListOfFollowersSerializer, ListOfFollowingSerializer,
     EditProfileSerializer, ChangePasswordSerializer, StorySerializer, EditProfilePhotoSerializer,
-    ListForSendPostSerializer, UserSuggestionSerializer, UserActivitiesSerializer, GetCodeSerializer
+    ListForSendPostSerializer, UserSuggestionSerializer, UserActivitiesSerializer, GetCodeSerializer,
 )
 from post.serializers import PostListProfileSerializer
 from rest_framework import status
@@ -15,10 +15,10 @@ from utils import send_otp_code, is_user_allowed
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.tokens import AccessToken, TokenError
+from rest_framework_simplejwt.views import TokenRefreshView
 from follow.models import Follow
 from rest_framework.generics import ListAPIView, UpdateAPIView, DestroyAPIView
-from django.db import connection, reset_queries
 
 
 
@@ -27,7 +27,7 @@ class UserRegistrationEmailView(APIView):
     """
     Receive: `username`, `email`, `password`, `password2`.\n
     Remember: User information must be stored in a key named `user_registration_info` for use in the next endpoint.\n
-    Then send the `confirmation code` to the user's email.
+    And then the `confirmation code` will be sent to the user.
     """
     
     serializer_class = UserRegistrationSerializer
@@ -99,6 +99,19 @@ class UserRegistrationConfirmationView(APIView):
         }
         
         return Response({'tokens': tokens}, status=status.HTTP_200_OK)
+
+
+
+class CustomizeTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError:
+            return Response({'detail': 'Refresh token has expired.'}, status=status.HTTP_403_FORBIDDEN)
+
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
 
