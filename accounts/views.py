@@ -1,14 +1,16 @@
+import random
 from django.shortcuts import get_object_or_404
 from django.db import connection, reset_queries
+from django.contrib.auth.password_validation import validate_password
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import (
     UserRegistrationSerializer, ProfileSerializer, ListOfFollowersSerializer, ListOfFollowingSerializer,
     EditProfileSerializer, ChangePasswordSerializer, StorySerializer, EditProfilePhotoSerializer,
     ListForSendPostSerializer, UserSuggestionSerializer, UserActivitiesSerializer, GetCodeSerializer,
+    UserInformationSerializer
 )
 from post.serializers import PostListProfileSerializer
-from rest_framework import status
 from .models import StoryViews, User, Story, Activities, OtpCode
 from .paginations import PaginateBy6, PaginateBy10
 from utils import send_otp_code, is_user_allowed
@@ -27,6 +29,7 @@ class UserRegistrationEmailView(APIView):
     """
     Receive: `username`, `email`, `password`, `password2`.\n
     Remember: User information must be stored in a key named `user_registration_info` for use in the next endpoint.\n
+    Note: The `password` should not be simple, otherwise: Error 402\n
     And then the `confirmation code` will be sent to the user.
     """
     
@@ -36,6 +39,11 @@ class UserRegistrationEmailView(APIView):
         serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
+            try:
+                validate_password(serializer.validated_data['password'])
+            except:
+                return Response('This password is too common', status=402)
+
             random_code = random.randint(100000, 999999)
             OtpCode.objects.create(email=serializer.validated_data['email'], code=random_code)
             send_otp_code(serializer.validated_data['email'], random_code)
@@ -46,9 +54,9 @@ class UserRegistrationEmailView(APIView):
                 'email': serializer.validated_data['email'],
                 'password': serializer.validated_data['password']
             }
-            return Response({'detail': 'We have sent you a code.'}, status=status.HTTP_200_OK)
+            return Response('We have sent you a code.', status=200)
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=400)
 
 
 
@@ -70,17 +78,17 @@ class UserRegistrationConfirmationView(APIView):
         # Check user information
         user_registration_info = request.session.get('user_registration_info') or request.data.get('user_registration_info')
         if not user_registration_info:
-            return Response({'detail': 'User information is missing or lost.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response('User information is missing or lost.', status=400)
         
         # Check the otp code
         try:
             otp_code = OtpCode.objects.get(email=user_registration_info['email'], code=code)
         except OtpCode.DoesNotExist:
-            return Response({'detail': 'The code is incorrect.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response('The code is incorrect.', status=404)
 
         if not otp_code.is_valid():
             otp_code.delete()
-            return Response({'detail': 'The code has expired.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response('The code has expired.', status=404)
         
         otp_code.delete()
 
@@ -98,7 +106,7 @@ class UserRegistrationConfirmationView(APIView):
             'access': str(AccessToken().for_user(user))
         }
         
-        return Response({'tokens': tokens}, status=status.HTTP_200_OK)
+        return Response({'tokens': tokens}, status=200)
 
 
 
@@ -109,9 +117,9 @@ class CustomizeTokenRefreshView(TokenRefreshView):
         try:
             serializer.is_valid(raise_exception=True)
         except TokenError:
-            return Response({'detail': 'Refresh token has expired.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response('Refresh token has expired.', status=410)
 
-        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        return Response(serializer.validated_data, status=200)
 
 
 
@@ -130,7 +138,7 @@ class ProfileView(APIView):
     def get(self, request, username):
         user = User.objects.filter(username=username).first()
         if user is None:
-            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response('User not found.', status=404)
         
         is_following = Follow.objects.filter(from_user=request.user, to_user=user).exists()
         full_access_to_profile = request.user == user or is_following or not user.private
@@ -147,7 +155,7 @@ class ProfileView(APIView):
             context['posts'] = posts_serializer.data
             return paginator.get_paginated_response(context)
         
-        return Response(context, status=status.HTTP_200_OK)
+        return Response(context, status=200)
 
 
 
@@ -186,14 +194,14 @@ class EditProfileView(APIView):
 
     def get(self, request):
         serializer = self.serializer_class(request.user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=200)
     
     def put(self, request):
         serializer = self.serializer_class(instance=request.user, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.data, status=200)
+        return Response(serializer.errors, status=400)
 
 
 
@@ -215,11 +223,11 @@ class EditProfilePhotoView(UpdateAPIView, DestroyAPIView):
         user = self.get_object()
         if user.profile_photo:
             user.profile_photo.delete()
-            return Response({'detail': 'Profile photo deleted successfully.'}, status=status.HTTP_200_OK)
+            return Response('Profile photo deleted successfully.', status=200)
         
         return Response(
-            {'detail': 'The user does not have a profile photo to delete.'},
-            status=status.HTTP_400_BAD_REQUEST
+            'The user does not have a profile photo to delete.',
+            status=400
         )
 
 
@@ -261,20 +269,57 @@ class FollowingView(ListAPIView):
 
 
 class ChangePasswordView(APIView):
-    def post(self, request):
+    """
+    Receive: `old_password` , `password1` , `password2`\n
+    Conditions:\n
+    \t 1- The old password must be correct, otherwise: Error 404\n
+    \t 2- Password1 and password2 must be match, otherwise: Error 401\n
+    \t 3- The new password must not be the same as the old password, otherwise: Error 403\n
+    \t 4- The password should not be easy, otherwise: Error 400\n
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = ChangePasswordSerializer
+
+    def put(self, request):
         user = request.user
-        serializer = ChangePasswordSerializer(data=request.POST)
+        serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
-            if not user.check_password(serializer.data['old_password']):
-                return Response(status=status.HTTP_404_NOT_FOUND)
-            if serializer.data['password1'] != serializer.data['password2']:
-                return Response(status=status.HTTP_401_UNAUTHORIZED)
-            if user.check_password(serializer.data['password1']):
-                return Response(status=status.HTTP_403_FORBIDDEN)
-            user.set_password(serializer.data['password1'])
+            value = serializer.data
+
+            if not user.check_password(value['old_password']):
+                return Response('The old password is wrong.', status=404)
+
+            if value['password1'] != value['password2']:
+                return Response('Passwords must match.', status=405)
+
+            if user.check_password(value['password1']):
+                return Response('The new password must be different.', status=403)
+            
+            try:
+                validate_password(value['password1'])
+            except:
+                return Response('This password is too common.', status=400)
+            
+            user.set_password(value['password1'])
             user.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response('Password changed successfully.', status=200)
+        return Response(serializer.errors, status=400)
+
+
+
+class UserInformationView(APIView):
+    """
+    Get user information to store in context. These fields are returned:\n
+    `id` , `username` , `profile_photo`
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = UserInformationSerializer
+
+    def get(self, request):
+        serializer = self.serializer_class(request.user)
+        return Response(serializer.data, status=200)
 
 
 
@@ -286,7 +331,7 @@ class StoryView(APIView):
         stories = Story.objects.filter(user=user)
 
         if not stories:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response(status=404)
         
         for story in stories:
             if not StoryViews.objects.filter(user=request.user, story=story).exists():
@@ -296,7 +341,7 @@ class StoryView(APIView):
         
         serializer = StorySerializer(stories, context={'request': request}, many=True)
         value = {'stories': serializer.data, 'all_has_seen': all_has_seen}
-        return Response(value, status=status.HTTP_200_OK)
+        return Response(value, status=200)
 
 
 class SeenStoryView(APIView):
@@ -313,10 +358,10 @@ class CreateStoryView(APIView):
         if file:
             f = Story(file=file, user=request.user)
             if f.extension() == 'unacceptable':
-                return Response(status=status.HTTP_400_BAD_REQUEST)
+                return Response(status=400)
             f.save()
-            return Response(status=status.HTTP_201_CREATED)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=201)
+        return Response(status=400)
 
 
 class RemoveStoryView(APIView):
@@ -326,8 +371,8 @@ class RemoveStoryView(APIView):
         story = Story.objects.get(id=story_id)
         if request.user == story.user:
             story.delete()
-            return Response(status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_401_UNAUTHORIZED)
+            return Response(status=200)
+        return Response(status=401)
 
 
 class FollowView(APIView):
@@ -343,8 +388,8 @@ class FollowView(APIView):
                         from_user=auth_user, to_user=user, follow=True
                     )
             Follow.objects.create(from_user=auth_user, to_user=user)
-            return Response(status=status.HTTP_201_CREATED)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=201)
+        return Response(status=400)
 
 
 class UnFollowView(APIView):
@@ -357,8 +402,8 @@ class UnFollowView(APIView):
             if Activities.objects.filter(from_user=auth_user, to_user=user, follow=True).exists():
                 Activities.objects.get(from_user=auth_user, to_user=user, follow=True).delete()
             Follow.objects.get(from_user=auth_user, to_user=user).delete()
-            return Response(status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response(status=200)
+        return Response(status=404)
 
 
 class RemoveFollowerView(APIView):
@@ -368,8 +413,8 @@ class RemoveFollowerView(APIView):
         user = get_object_or_404(User, id=user_id)
         if Follow.objects.filter(from_user=user, to_user=request.user).exists():
             Follow.objects.get(from_user=user, to_user=request.user).delete()
-            return Response(status=status.HTTP_200_OK)
-        return Response(ststus=status.HTTP_404_NOT_FOUND)
+            return Response(status=200)
+        return Response(ststus=404)
 
 
 class ListForSendPostView(APIView):
@@ -379,7 +424,7 @@ class ListForSendPostView(APIView):
         user = request.user
         following = user.following.all()
         serializer = ListForSendPostSerializer(following, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=200)
 
 
 class UserSuggestionView(APIView):
@@ -400,12 +445,12 @@ class UserSuggestionView(APIView):
             final_users = final_users[:5]
         
         serializer = UserSuggestionSerializer(final_users, context={'request': request}, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=200)
 
 
 class UserActivities(APIView):
     def get(self, request):
         activity = Activities.objects.filter(to_user=request.user)
         serializer = UserActivitiesSerializer(activity, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=200)
 

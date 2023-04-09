@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
-from .models import User, Story, StoryViews, Activities
+from .models import Story, StoryViews, Activities
 from follow.models import Follow
+from django.contrib.auth import get_user_model
 from utils import validate_profile_photo_size
 
 
@@ -11,17 +12,17 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(required=True, write_only=True)
 
     class Meta:
-        model = User
+        model = get_user_model()
         fields = ('username', 'email', 'password', 'password2')
         extra_kwargs = {
             'password': {'write_only': True},
-            'username': {'validators': [UniqueValidator(queryset=User.objects.all())],},
-            'email': {'validators': [UniqueValidator(queryset=User.objects.all())]},
+            'username': {'validators': [UniqueValidator(queryset=get_user_model().objects.all())],},
+            'email': {'validators': [UniqueValidator(queryset=get_user_model().objects.all())]},
         }
     
     def create(self, validated_data):
         del validated_data['password2']
-        return User.objects.create_user(**validated_data)
+        return get_user_model().objects.create_user(**validated_data)
     
     def validate(self, data):
         if data['password'] != data['password2']:
@@ -43,7 +44,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     is_following = serializers.SerializerMethodField()
 
     class Meta:
-        model = User
+        model = get_user_model()
         fields = (
             'id', 'username', 'name', 'followers_count', 'following_count', 'profile_photo', 'bio',
             'full_access_to_profile', 'is_following'
@@ -79,7 +80,7 @@ class EditProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False, read_only=True)
 
     class Meta:
-        model = User
+        model = get_user_model()
         fields = ('id', 'profile_photo', 'name', 'username', 'website', 'bio', 'email', 'gender','open_suggestions')
 
 
@@ -88,7 +89,7 @@ class EditProfilePhotoSerializer(serializers.ModelSerializer):
     profile_photo = serializers.ImageField(validators=[validate_profile_photo_size])
     
     class Meta:
-        model = User
+        model = get_user_model()
         fields = ('profile_photo',)
 
 
@@ -152,11 +153,19 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 
+class UserInformationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = get_user_model()
+        fields = ('id', 'username', 'profile_photo')
+
+
+
 class UserPostDetailSerializer(serializers.ModelSerializer):
     profile_photo = serializers.SerializerMethodField()
 
     class Meta:
-        model = User
+        model = get_user_model()
         fields = ('profile_photo', 'name', 'username')
     
     def get_profile_photo(self, obj):
@@ -205,7 +214,7 @@ class StorySerializer(serializers.ModelSerializer):
 class UserSearchSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = User
+        model = get_user_model()
         fields = ('profile_photo', 'username', 'name')
 
 
@@ -234,7 +243,7 @@ class ListForSendPostSerializer(serializers.ModelSerializer):
 class UserListSuggestionSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = User
+        model = get_user_model()
         fields = ('username',)
 
 
@@ -243,7 +252,7 @@ class UserSuggestionSerializer(serializers.ModelSerializer):
     followed_by = serializers.SerializerMethodField()
 
     class Meta:
-        model = User
+        model = get_user_model()
         fields = ('username', 'profile_photo', 'followed_by')
     
     def get_profile_photo(self, obj):
@@ -266,7 +275,7 @@ class UserSuggestionSerializer(serializers.ModelSerializer):
 class UserActivity(serializers.ModelSerializer):
 
     class Meta:
-        model = User
+        model = get_user_model()
         fields = ('id', 'username', 'profile_photo')
 
 
