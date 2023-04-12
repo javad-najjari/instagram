@@ -17,7 +17,7 @@ from utils import send_otp_code, is_user_allowed
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.tokens import AccessToken, TokenError
+from rest_framework_simplejwt.tokens import AccessToken, TokenError, RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from follow.models import Follow
 from rest_framework.generics import ListAPIView, UpdateAPIView, DestroyAPIView
@@ -123,17 +123,48 @@ class CustomizeTokenRefreshView(TokenRefreshView):
 
 
 
+# class CustomTokenVerifyView(TokenVerifyView):
+#     def dispatch(self, request, *args, **kwargs):
+#         try:
+#             self.get_object()
+#         except TokenError as e:
+#             if str(e) == 'Token is expired':
+#                 return Response('Token has expired.', status=411)
+#             else:
+#                 return Response('Invalid token.', status=401)
+#         else:
+#             return super().dispatch(request, *args, **kwargs)
+
+
+
+# TODO: the access_token must also expire
+class LogoutView(APIView):
+    """
+    Retrieve: `refresh_tokeh`\n
+    Note: The `access token` must be removed from the user header.\n
+    Then the user will be logged out.
+    """
+
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh_token"]
+            RefreshToken(refresh_token).blacklist()
+            return Response('Logged out successfully.', status=204)
+        except:
+            return Response('Token is not valid.', status=400)
+
+
+
 class ProfileView(APIView):
     """
     Receive: `username`\n
-    Returning: `pagination` and `user` information\n
-    And also user `posts` if `full_access_to_profile` is true. That's mean:\n
-    (requested_user = auth_user) `or` (auth_user is following requested_user) `or` (requested_user account is not private)
+    Returning: `user` information
     """
 
     permission_classes = (IsAuthenticated,)
     serializer_class = ProfileSerializer
-    pagination_class = PaginateBy6
 
     def get(self, request, username):
         user = User.objects.filter(username=username).first()
@@ -145,17 +176,37 @@ class ProfileView(APIView):
         profile_serializer = self.serializer_class(
             user, context={'full_access_to_profile': full_access_to_profile, 'request': request}
         )
-        context = {'profile': profile_serializer.data}
         
-        if full_access_to_profile:
+        return Response(profile_serializer.data, status=200)
+
+
+
+class UserProfilePosts(ListAPIView):
+    """
+    Receive: `username`\n
+    Returning: user `posts` if `full_access_to_profile` is true. That's mean:\n
+    (requested_user = auth_user) `or` (auth_user is following requested_user) `or` (requested_user account is not private)
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = PostListProfileSerializer
+    pagination_class = PaginateBy6
+
+    def list(self, request, *args, **kwargs):
+        user = User.objects.filter(username=kwargs.get('username')).first()
+        if user is None:
+            return Response('User not found.', status=404)
+
+        is_following = Follow.objects.filter(from_user=request.user, to_user=user).exists()
+        access_to_posts = request.user == user or is_following or not user.private
+
+        if access_to_posts:
             posts = user.user_posts.all()
             paginator = self.pagination_class()
             result_page = paginator.paginate_queryset(posts, request)
-            posts_serializer = PostListProfileSerializer(result_page, context={'request': request}, many=True)
-            context['posts'] = posts_serializer.data
-            return paginator.get_paginated_response(context)
-        
-        return Response(context, status=200)
+            posts_serializer = self.serializer_class(result_page, context={'request': request}, many=True)
+            return paginator.get_paginated_response(posts_serializer.data)
+        return Response("You are not allowed to see this user's posts", status=400)
 
 
 

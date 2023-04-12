@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_celery_beat',
     'drf_spectacular',
+    'rest_framework_simplejwt.token_blacklist',
     
     'accounts.apps.AccountsConfig',
     'follow.apps.FollowConfig',
