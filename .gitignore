@@ -6,5 +6,6 @@ __pycache__/
 .venv/
 /static/
 nothing.txt
-# /media/
+/media/
 .env
+db.sqlite3
