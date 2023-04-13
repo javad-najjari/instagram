@@ -172,11 +172,12 @@ class ProfileView(APIView):
             return Response('User not found.', status=404)
         
         is_following = Follow.objects.filter(from_user=request.user, to_user=user).exists()
+        is_owner = request.user == user
         full_access_to_profile = request.user == user or is_following or not user.private
         profile_serializer = self.serializer_class(
-            user, context={'full_access_to_profile': full_access_to_profile, 'request': request}
+            user, context={'full_access_to_profile': full_access_to_profile, 'is_owner': is_owner, 'request': request}
         )
-        
+        print(f'{"*"*50} {len(connection.queries)} {"*"*50}')
         return Response(profile_serializer.data, status=200)
 
 
@@ -338,23 +339,25 @@ class ChangePasswordView(APIView):
         if serializer.is_valid():
             value = serializer.data
 
-            if not user.check_password(value['old_password']):
-                return Response('The old password is wrong.', status=404)
-
             if value['password1'] != value['password2']:
                 return Response('Passwords must match.', status=405)
-
-            if user.check_password(value['password1']):
-                return Response('The new password must be different.', status=403)
             
             try:
                 validate_password(value['password1'])
             except:
                 return Response('This password is too common.', status=400)
             
+            if user.check_password(value['password1']):
+                return Response('The new password must be different.', status=403)
+            
+            if not user.check_password(value['old_password']):
+                return Response('The old password is wrong.', status=404)
+            
             user.set_password(value['password1'])
             user.save()
+            print(f'{"*"*50} {len(connection.queries)} {"*"*50}')
             return Response('Password changed successfully.', status=200)
+            
         return Response(serializer.errors, status=400)
 
 

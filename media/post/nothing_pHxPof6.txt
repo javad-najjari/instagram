@@ -1,0 +1,7 @@
+    1  sudo add-apt-repository ppa:danielrichter2007/grub-customizer
+    2  sudo apt-get update
+    3  sudo apt-get install grub-customizer
+
+
+LegacyWindows detected. The boot of your PC is in EFI mode. You may want to retry after changing it to BIOS-compatibility/CSM/Legacy mode.
+Are you sure you want to continue anyway?

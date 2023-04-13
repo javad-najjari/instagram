@@ -2,38 +2,52 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .serializers import (
     PostDetailSerializer, CommentCreateSerializer, PostWithoutCommentsSerializer, PostListGlobalSerializer,
-    SearchUserSerializer,
+    SearchUserSerializer, CreatePostSerializer
 )
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
 from rest_framework import generics
 from .models import Post, File, Comment, PostLike, PostSave, PostViews
 from .paginations import HomePagination, GlobalPagination
 from follow.models import Follow
 from direct.models import Message, Direct
 from accounts.models import User, Activities
+from django.db import connection, reset_queries
 from django.db.models import Q
 
 
 
 
 class CreatePostView(APIView):
+    """
+    Receive: `caption` , `files`\n
+    Note: The number of received files must be between 1 and 10, otherwise: `Error 401`\n
+    Note: The extension of the received files must be currect, otherwise: `Error 400`\n
+    \t for pictures:  `jpg` , `jpeg` , `png`\n
+    \t for videos :  `mp4` , `mkv` , `avi`\n
+    And then the post will be created with status code `201`
+    """
+
     permission_classes = (IsAuthenticated,)
+    serializer_class = CreatePostSerializer
 
     def post(self, request):
-        caption = request.POST['caption']
+        caption = request.data.get('caption')
         files = request.FILES.getlist('files')
-        if len(files) < 1 or len(files) > 10:
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
-        post = Post.objects.create(user=request.user, caption=caption)
+        files_count = len(files)
+
+        if not (0 < files_count < 10):
+            return Response(f'Number of files should be between 1 and 10. Received {files_count} files.', status=401)
+        
         for file in files:
-            f = File(page=file, post=post)
-            if f.extension() == 'unacceptable':
-                post.delete()
-                return Response(status=status.HTTP_400_BAD_REQUEST)
-            f.save()
-        return Response(status=status.HTTP_201_CREATED)
+            if File(page=file).extension() == 'unacceptable':
+                return Response('File extension is not acceptable.', status=400)
+        
+        post = Post.objects.create(user=request.user, caption=caption)
+        File.objects.bulk_create([File(page=file, post=post) for file in files])
+
+        return Response('Post created.', status=201)
+
 
 
 class RemovePostView(APIView):
@@ -43,8 +57,8 @@ class RemovePostView(APIView):
         post = get_object_or_404(Post, id=post_id)
         if request.user == post.user:
             post.delete()
-            return Response(status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_401_UNAUTHORIZED)
+            return Response(status=200)
+        return Response(status=401)
 
 
 class LikePostView(APIView):
@@ -57,13 +71,13 @@ class LikePostView(APIView):
             if Activities.objects.filter(from_user=user, to_user=post.user, post_id=post.id, like=True).exists():
                 Activities.objects.get(from_user=user, to_user=post.user, post_id=post.id, like=True).delete()
             PostLike.objects.get(user=user, post=post).delete()
-            return Response(status=status.HTTP_200_OK)
+            return Response(status=200)
         if user != post.user:
             Activities.objects.create(
                 from_user=user, to_user=post.user, post_id=post.id, like=True
             )
         PostLike.objects.create(user=user, post=post)
-        return Response(status=status.HTTP_200_OK)
+        return Response(status=200)
 
 
 class LikePostDoubleClickView(APIView):
@@ -79,8 +93,8 @@ class LikePostDoubleClickView(APIView):
                         from_user=user, to_user=post.user, post_id=post.id, like=True
                     )
             PostLike.objects.create(user=user, post=post)
-            return Response(status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_100_CONTINUE)
+            return Response(status=200)
+        return Response(status=100)
 
 
 class SavePostView(APIView):
@@ -91,9 +105,9 @@ class SavePostView(APIView):
         post = get_object_or_404(Post, id=post_id)
         if not PostSave.objects.filter(user=user, post=post).exists():
             PostSave.objects.create(user=user, post=post)
-            return Response(status=status.HTTP_200_OK)
+            return Response(status=200)
         PostSave.objects.get(user=user, post=post).delete()
-        return Response(status=status.HTTP_200_OK)
+        return Response(status=200)
 
 
 class CreateCommentView(APIView):
@@ -107,8 +121,8 @@ class CreateCommentView(APIView):
                 user = request.user, body = serializer.validated_data['body'],
                 post = post
             )
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
 
 
 # class CreateReplyCommentView(APIView):
@@ -123,8 +137,8 @@ class CreateCommentView(APIView):
 #                 user = request.user, body = serializer.validated_data['body'],
 #                 post = post, to_comment = to_comment, is_reply = True
 #             )
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#             return Response(serializer.data, status=HTTP_201_CREATED)
+#         return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
 
 
 class RemoveCommentView(APIView):
@@ -134,8 +148,8 @@ class RemoveCommentView(APIView):
         comment = get_object_or_404(Comment, id=comment_id)
         if request.user == comment.user or request.user == comment.post.user:
             comment.delete()
-            return Response(status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_401_UNAUTHORIZED)
+            return Response(status=200)
+        return Response(status=401)
 
 
 class DetailByCommentsPostView(APIView):
@@ -144,7 +158,7 @@ class DetailByCommentsPostView(APIView):
         serializer = PostDetailSerializer(post, context={'request': request})
         if not PostViews.objects.filter(post=post, user=request.user).exists():
             PostViews.objects.create(post=post, user=request.user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=200)
 
 
 class PostOfFollowingsView(generics.ListAPIView):
@@ -193,7 +207,7 @@ class SendPostView(APIView):
         post = get_object_or_404(Post, id=post_id)
         direct = Direct.objects.get(Q(user1=auth_user, user2=to_user) | Q(user1=to_user, user2=auth_user))
         Message.objects.create(user=auth_user, direct=direct, post=post)
-        return Response(status=status.HTTP_201_CREATED)
+        return Response(status=201)
 
 
 class SearchUserView(APIView):
@@ -204,5 +218,5 @@ class SearchUserView(APIView):
             if (word in user.username or word in user.name) and user != request.user:
                 result_users.append(user)
         serializer = SearchUserSerializer(result_users, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=200)
 

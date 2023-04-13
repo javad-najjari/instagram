@@ -37,6 +37,8 @@ class GetCodeSerializer(serializers.Serializer):
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    is_owner = serializers.SerializerMethodField()
+    posts_count = serializers.SerializerMethodField()
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     full_access_to_profile = serializers.SerializerMethodField()
@@ -46,15 +48,21 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
         fields = (
-            'id', 'username', 'name', 'followers_count', 'following_count', 'profile_photo', 'bio',
-            'full_access_to_profile', 'is_following'
+            'id', 'username', 'name', 'is_owner', 'posts_count', 'followers_count', 'following_count', 'profile_photo',
+            'bio', 'full_access_to_profile', 'is_following'
         )
     
+    def get_is_owner(self, obj):
+        return self.context.get('is_owner')
+
     def get_followers_count(self, obj):
         return obj.followers.count()
     
     def get_following_count(self, obj):
         return obj.following.count()
+    
+    def get_posts_count(self, obj):
+        return obj.user_posts.count()
     
     def get_full_access_to_profile(self, obj):
         return self.context.get('full_access_to_profile')

@@ -8,6 +8,27 @@ from accounts.models import User
 
 
 
+class FileSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = File
+        fields = ('id', 'page', 'extension')
+
+
+
+class CreatePostSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    files = serializers.FileField()
+    
+    class Meta:
+        model = Post
+        fields = ('user', 'caption', 'files')
+    
+    def get_user(self, obj):
+        return self.context.get('user')
+
+
+
 class CommentSerializer(serializers.ModelSerializer):
     user = UserPostDetailSerializer()
     comment_likes = serializers.SerializerMethodField()
@@ -41,12 +62,6 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ('body',)
 
-
-class FileSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = File
-        fields = ('id', 'page', 'extension')
 
 
 # TODO: متدهای این سریالایزر اصلا بهینه نیست . تعداد کوءری های خیلی زیادی به دیتابیس میزنه . باید بعدا درستشون کنم
