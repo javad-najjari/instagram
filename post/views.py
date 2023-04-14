@@ -51,14 +51,24 @@ class CreatePostView(APIView):
 
 
 class RemovePostView(APIView):
+    """
+    Receive: `post_id`\n
+    If `auth_user` = `post_user`  =>  The post will be deleted.
+    """
+
     permission_classes = (IsAuthenticated,)
 
     def delete(self, request, post_id):
-        post = get_object_or_404(Post, id=post_id)
+        post = Post.objects.select_related('user').filter(id=post_id).first()
+        if not post:
+            return Response('Post not found.', status=404)
+        
         if request.user == post.user:
             post.delete()
-            return Response(status=200)
-        return Response(status=401)
+            return Response('Post deleted.', status=200)
+        
+        return Response('You are not the owner.', status=401)
+
 
 
 class LikePostView(APIView):

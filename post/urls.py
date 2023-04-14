@@ -6,7 +6,7 @@ from . import views
 app_name = 'post'
 urlpatterns = [
     path('create/', views.CreatePostView.as_view()),
-    # path('remove-post/<int:post_id>/', views.RemovePostView.as_view()),
+    path('delete/<int:post_id>/', views.RemovePostView.as_view()),
     # path('detail-and-comments/<int:post_id>/', views.DetailByCommentsPostView.as_view()),
     # path('like-post/<int:post_id>/', views.LikePostView.as_view()),
     # path('like-post-double-click/<int:post_id>/', views.LikePostDoubleClickView.as_view()),
