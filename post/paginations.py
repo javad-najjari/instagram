@@ -3,9 +3,9 @@ from rest_framework.response import Response
 
 
 
-class HomePagination(PageNumberPagination):
+class PaginateBy5(PageNumberPagination):
 
-    page_size = 3
+    page_size = 5
 
     def get_paginated_response(self, data):
         domain = self.request.META['HTTP_HOST']
@@ -19,7 +19,7 @@ class HomePagination(PageNumberPagination):
         })
 
 
-class GlobalPagination(PageNumberPagination):
+class PaginateBy15(PageNumberPagination):
 
     page_size = 15
 

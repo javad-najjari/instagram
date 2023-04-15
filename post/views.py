@@ -7,8 +7,8 @@ from .serializers import (
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import generics
-from .models import Post, File, Comment, PostLike, PostSave, PostViews
-from .paginations import HomePagination, GlobalPagination
+from .models import Post, File, Comment, PostLike, PostSave
+from .paginations import PaginateBy5, PaginateBy15
 from follow.models import Follow
 from direct.models import Message, Direct
 from accounts.models import User, Activities
@@ -68,6 +68,50 @@ class RemovePostView(APIView):
             return Response('Post deleted.', status=200)
         
         return Response('You are not the owner.', status=401)
+
+
+
+class PostDetailView(APIView):
+    """
+    Receive: `post_id`\n
+    Get: `post details`
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = PostDetailSerializer
+
+    def get(self, request, post_id):
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response('Post not found.', status=404)
+        
+        serializer = self.serializer_class(post, context={'request': request})
+        return Response(serializer.data, status=200)
+
+
+
+# TODO: این ویو میتونه خیلی بهتر و بهینه تر بشه . باید روش کار بشه
+class HomeView(APIView):
+    """
+    A list of `following posts` is returned.
+    """
+    
+    permission_classes = (IsAuthenticated,)
+    serializer_class = PostWithoutCommentsSerializer
+
+    def get(self, request):
+        user = request.user
+        following_ids = user.following.select_related('to_user').values_list('to_user__id', flat=True)
+        posts = Post.objects.prefetch_related(
+            'files', 'post_likes', 'post_comments', 'post_saves'
+        ).filter(user__id__in=following_ids).order_by('-created')
+
+        paginator = PaginateBy5()
+        result_page = paginator.paginate_queryset(posts, request)
+        serializer = self.serializer_class(result_page, context={'request': request}, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
 
 
 
@@ -162,38 +206,11 @@ class RemoveCommentView(APIView):
         return Response(status=401)
 
 
-class DetailByCommentsPostView(APIView):
-    def get(self, request, post_id):
-        post = get_object_or_404(Post, id=post_id)
-        serializer = PostDetailSerializer(post, context={'request': request})
-        if not PostViews.objects.filter(post=post, user=request.user).exists():
-            PostViews.objects.create(post=post, user=request.user)
-        return Response(serializer.data, status=200)
-
-
-class PostOfFollowingsView(generics.ListAPIView):
-
-    queryset = Post.objects
-    pagination_class = HomePagination
-
-    def get(self, request):
-        user = request.user
-        following_posts = [follow.to_user.user_posts.all() for follow in user.following.all()]
-        posts = []
-        for post in following_posts:
-            for p in post:
-                posts.append(p)
-        
-        posts.sort(key= lambda x:x.created, reverse=True)
-        serializer = PostWithoutCommentsSerializer(posts, context={'request': request}, many=True)
-        results = self.paginate_queryset(serializer.data)
-        return self.get_paginated_response(results)
-
 
 class PostGlobalView(generics.ListAPIView):
 
     queryset = Post.objects
-    pagination_class = GlobalPagination
+    pagination_class = PaginateBy15
 
     def get(self, request):
         auth_user = request.user

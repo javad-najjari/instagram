@@ -4,6 +4,7 @@ from accounts.serializers import UserPostDetailSerializer
 from datetime import datetime
 from follow.models import Follow
 from accounts.models import User
+from utils import elapsed_time
 
 
 
@@ -98,23 +99,23 @@ class PostListProfileSerializer(serializers.ModelSerializer):
         return obj.files.count() > 1
 
 
+
 class PostDetailSerializer(serializers.ModelSerializer):
     user = UserPostDetailSerializer()
     auth_username = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()
-    # comments_count = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     has_save = serializers.SerializerMethodField()
     has_like = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
-    has_own = serializers.SerializerMethodField()
+    is_owner = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
         fields = (
             'id', 'user', 'auth_username', 'files', 'caption', 'created', 'likes_count',
-            'comments', 'has_save', 'has_like', 'is_following', 'has_own'
+            'comments', 'has_save', 'has_like', 'is_following', 'is_owner'
         )
     
     def get_files(self, obj):
@@ -131,31 +132,21 @@ class PostDetailSerializer(serializers.ModelSerializer):
     def get_comments(self, obj):
         comments = obj.post_comments.all()
         serializer = CommentSerializer(
-            comments,
-            context={'auth_user': self.context['request'].user, 'post_user': obj.user},
-            many=True
+            comments, context={'auth_user': self.context['request'].user, 'post_user': obj.user}, many=True
             )
         return serializer.data
     
     def get_has_save(self, obj):
-        if PostSave.objects.filter(user=self.context['request'].user, post=obj).exists():
-            return True
-        return False
+        return PostSave.objects.filter(user=self.context['request'].user, post=obj).exists()
     
     def get_has_like(self, obj):
-        if PostLike.objects.filter(user=self.context['request'].user, post=obj).exists():
-            return True
-        return False
+        return PostLike.objects.filter(user=self.context['request'].user, post=obj).exists()
     
     def get_is_following(self, obj):
         auth_user = self.context['request'].user
-        if Follow.objects.filter(from_user=auth_user, to_user=obj.user).exists():
-            return True
-        elif auth_user == obj.user:
-            return None
-        return False
+        return Follow.objects.filter(from_user=auth_user, to_user=obj.user).exists()
     
-    def get_has_own(self, obj):
+    def get_is_owner(self, obj):
         auth_user = self.context['request'].user
         if auth_user == obj.user:
             return True
@@ -165,60 +156,33 @@ class PostDetailSerializer(serializers.ModelSerializer):
         return self.context['request'].user.username
 
 
+
 class PostWithoutCommentsSerializer(serializers.ModelSerializer):
     user = UserPostDetailSerializer()
-    files = serializers.SerializerMethodField()
-    likes_count = serializers.SerializerMethodField()
-    comments_count = serializers.SerializerMethodField()
+    files = FileSerializer(many=True)
+    likes_count = serializers.IntegerField(source='post_likes.count')
+    comments_count = serializers.IntegerField(source='post_comments.count')
     has_save = serializers.SerializerMethodField()
     has_like = serializers.SerializerMethodField()
     created = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
-        fields = ('id', 'user', 'files', 'caption', 'created', 'likes_count', 'comments_count', 'has_save', 'has_like')
-    
-    def get_files(self, obj):
-        files = obj.files.all()
-        serializer = FileSerializer(files, many=True)
-        return serializer.data
-    
-    def get_likes_count(self, obj):
-        return obj.post_likes.count()
-    
-    def get_comments_count(self, obj):
-        return obj.post_comments.count()
+        fields = (
+            'id', 'user', 'files', 'caption', 'created', 'likes_count', 'comments_count', 'has_save', 'has_like'
+        )
     
     def get_has_save(self, obj):
-        if PostSave.objects.filter(user=self.context['request'].user, post=obj).exists():
-            return True
-        return False
+        return PostSave.objects.filter(user=self.context['request'].user, post=obj).exists()
     
     def get_has_like(self, obj):
-        if PostLike.objects.filter(user=self.context['request'].user, post=obj).exists():
-            return True
-        return False
+        return PostLike.objects.filter(user=self.context['request'].user, post=obj).exists()
     
     def get_created(self, obj):
-        elapsed_time = datetime.utcnow() - obj.created.replace(tzinfo=None)
-        t = int(elapsed_time.total_seconds())
-        if t < 60:
-            return f'{t} seconds'
-        elif t < 3600:
-            if t // 60 == 1:
-                return '1 minute'
-            return f'{t//60} minutes'
-        elif t < 86400:
-            if t // 3600 == 1:
-                return '1 hour'
-            return f'{t // 3600} hours'
-        elif t < 604800:
-            if t // 86400 == 1:
-                return '1 day'
-            return f'{t // 86400} days'
-        elif t // 604800 == 1:
-            return '1 week'
-        return f'{t // 604800} weeks'
+        e_time = datetime.utcnow() - obj.created.replace(tzinfo=None)
+        t = int(e_time.total_seconds())
+        return elapsed_time(t)
+
 
 
 class PostListGlobalSerializer(serializers.ModelSerializer):
