@@ -6,10 +6,8 @@ from .serializers import (
 )
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import generics
 from .models import Post, File, Comment, PostLike, PostSave
-from .paginations import PaginateBy5, PaginateBy15
-from follow.models import Follow
+from .paginations import PaginateBy5, PaginateBy10, PaginateBy15
 from direct.models import Message, Direct
 from accounts.models import User, Activities
 from django.db import connection, reset_queries
@@ -209,8 +207,8 @@ class ExploreView(APIView):
         
         paginator = PaginateBy15()
         result_page = paginator.paginate_queryset(posts, request)
-        serializer = self.serializer_class(result_page, context={'request': request}, many=True)
-        return paginator.get_paginated_response(serializer.data, )
+        serializer = self.serializer_class(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 
@@ -224,13 +222,18 @@ class SendPostView(APIView):
         return Response(status=201)
 
 
+
 class SearchUserView(APIView):
+    """
+    Receive: a `word`\n
+    Then a `list of users` who have this word in their `username` or `name` is returned.
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = SearchUserSerializer
+
     def get(self, request, word):
-        users = User.objects.all()
-        result_users = []
-        for user in users:
-            if (word in user.username or word in user.name) and user != request.user:
-                result_users.append(user)
-        serializer = SearchUserSerializer(result_users, many=True)
+        users = User.objects.order_by('id').filter(Q(username__icontains=word) | Q(name__icontains=word))
+        serializer = self.serializer_class(users, many=True)
         return Response(serializer.data, status=200)
 

@@ -159,7 +159,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
 
 class PostWithoutCommentsSerializer(serializers.ModelSerializer):
     user = UserPostDetailSerializer()
-    files = FileSerializer(many=True)
+    files = serializers.SerializerMethodField()
     likes_count = serializers.IntegerField(source='post_likes.count')
     comments_count = serializers.IntegerField(source='post_comments.count')
     has_save = serializers.SerializerMethodField()
@@ -171,6 +171,11 @@ class PostWithoutCommentsSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'user', 'files', 'caption', 'created', 'likes_count', 'comments_count', 'has_save', 'has_like'
         )
+    
+    def get_files(self, obj):
+        files = obj.files.all()
+        serializer = FileSerializer(files, many=True)
+        return serializer.data
     
     def get_has_save(self, obj):
         return PostSave.objects.filter(user=self.context['request'].user, post=obj).exists()
