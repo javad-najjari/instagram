@@ -9,8 +9,11 @@ class PaginateBy5(PageNumberPagination):
 
     def get_paginated_response(self, data):
         domain = self.request.META['HTTP_HOST']
-        next = self.get_next_link().split(domain)[1]
-
+        if self.get_next_link():
+            next = self.get_next_link().split(domain)[1]
+        else:
+            next = None
+        
         return Response({
             'next': next,
             'total_objects': self.page.paginator.count,
@@ -25,7 +28,10 @@ class PaginateBy15(PageNumberPagination):
 
     def get_paginated_response(self, data):
         domain = self.request.META['HTTP_HOST']
-        next = self.get_next_link().split(domain)[1]
+        if self.get_next_link():
+            next = self.get_next_link().split(domain)[1]
+        else:
+            next = None
 
         return Response({
             'next': next,

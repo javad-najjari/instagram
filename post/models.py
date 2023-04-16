@@ -48,7 +48,7 @@ class File(models.Model):
         ordering = ('created',)
     
     def extension(self):
-        video_formats = ('.mp4', '.mkv', '.avi')
+        video_formats = ('.mp4', '.mkv', '.avi', '.mkv')
         image_formats = ('.jpg', '.jpeg', '.png')
         name, extension = os.path.splitext(self.page.name)
         if extension.lower() in video_formats:

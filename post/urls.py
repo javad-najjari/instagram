@@ -15,7 +15,7 @@ urlpatterns = [
     # path('create-comment/<int:post_id>/', views.CreateCommentView.as_view()),
     # # path('create-comment/<int:post_id>/<int:to_comment_id>/', views.CreateReplyCommentView.as_view()),
     # path('remove-comment/<int:comment_id>/', views.RemoveCommentView.as_view()),
-    # path('global/', views.PostGlobalView.as_view()),
+    path('explore/', views.ExploreView.as_view()),
     # path('send-post-direct/<int:post_id>/<int:user_id>/', views.SendPostView.as_view()),
     # path('search/<str:word>/', views.SearchUserView.as_view()),
 ]

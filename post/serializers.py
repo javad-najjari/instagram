@@ -185,11 +185,11 @@ class PostWithoutCommentsSerializer(serializers.ModelSerializer):
 
 
 
-class PostListGlobalSerializer(serializers.ModelSerializer):
+class PostExploreSerializer(serializers.ModelSerializer):
     file = serializers.SerializerMethodField()
     multi_files = serializers.SerializerMethodField()
-    likes_count = serializers.SerializerMethodField()
-    comments_count = serializers.SerializerMethodField()
+    likes_count = serializers.IntegerField(source='post_likes.count')
+    comments_count = serializers.IntegerField(source='post_comments.count')
 
     class Meta:
         model = Post
@@ -201,26 +201,9 @@ class PostListGlobalSerializer(serializers.ModelSerializer):
         return serializer.data
     
     def get_multi_files(self, obj):
-        if obj.files.count() > 1:
-            return True
-        return False
+        return obj.files.count() > 1
     
-    def get_has_save(self, obj):
-        if PostSave.objects.filter(user=self.context['request'].user, post=obj).exists():
-            return True
-        return False
-    
-    def get_has_like(self, obj):
-        if PostLike.objects.filter(user=self.context['request'].user, post=obj).exists():
-            return True
-        return False
-    
-    def get_likes_count(self, obj):
-        return obj.post_likes.count()
-    
-    def get_comments_count(self, obj):
-        return obj.post_comments.count()
-    
+
 
 class PostSendDirectSerializer(serializers.ModelSerializer):
     file = serializers.SerializerMethodField()

@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .serializers import (
-    PostDetailSerializer, CommentCreateSerializer, PostWithoutCommentsSerializer, PostListGlobalSerializer,
+    PostDetailSerializer, CommentCreateSerializer, PostWithoutCommentsSerializer, PostExploreSerializer,
     SearchUserSerializer, CreatePostSerializer
 )
 from rest_framework.response import Response
@@ -13,7 +13,7 @@ from follow.models import Follow
 from direct.models import Message, Direct
 from accounts.models import User, Activities
 from django.db import connection, reset_queries
-from django.db.models import Q
+from django.db.models import Q, Count
 
 
 
@@ -24,7 +24,7 @@ class CreatePostView(APIView):
     Note: The number of received files must be between 1 and 10, otherwise: `Error 401`\n
     Note: The extension of the received files must be currect, otherwise: `Error 400`\n
     \t for pictures:  `jpg` , `jpeg` , `png`\n
-    \t for videos :  `mp4` , `mkv` , `avi`\n
+    \t for videos :  `mp4` , `mkv` , `avi` , `mkv`\n
     And then the post will be created with status code `201`
     """
 
@@ -36,7 +36,7 @@ class CreatePostView(APIView):
         files = request.FILES.getlist('files')
         files_count = len(files)
 
-        if not (0 < files_count < 10):
+        if not (0 < files_count < 11):
             return Response(f'Number of files should be between 1 and 10. Received {files_count} files.', status=401)
         
         for file in files:
@@ -114,7 +114,6 @@ class HomeView(APIView):
 
 
 
-
 class LikePostView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -179,21 +178,6 @@ class CreateCommentView(APIView):
         return Response(serializer.errors, status=400)
 
 
-# class CreateReplyCommentView(APIView):
-#     permission_classes = (IsAuthenticated,)
-
-#     def post(self, request, post_id, to_comment_id):
-#         serializer = CommentCreateSerializer(data=request.data)
-#         post = Post.objects.get(id=post_id)
-#         to_comment = Comment.objects.get(id=to_comment_id)
-#         if serializer.is_valid():
-#             Comment.objects.create(
-#                 user = request.user, body = serializer.validated_data['body'],
-#                 post = post, to_comment = to_comment, is_reply = True
-#             )
-#             return Response(serializer.data, status=HTTP_201_CREATED)
-#         return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
-
 
 class RemoveCommentView(APIView):
     permission_classes = (IsAuthenticated,)
@@ -207,24 +191,27 @@ class RemoveCommentView(APIView):
 
 
 
-class PostGlobalView(generics.ListAPIView):
+class ExploreView(APIView):
+    """
+    A list of `posts` is returned.
+    """
 
-    queryset = Post.objects
-    pagination_class = PaginateBy15
+    permission_classes = (IsAuthenticated,)
+    serializer_class = PostExploreSerializer
 
     def get(self, request):
-        auth_user = request.user
-        posts = Post.objects.all()
-        final_posts = []
-        for post in posts:
-            follow = Follow.objects.filter(from_user=auth_user, to_user=post.user).exists()
-            if not follow and post.user != auth_user:
-                final_posts.append(post)
+        user = request.user
+        following_ids = list(user.following.select_related('to_user').values_list('to_user__id', flat=True))
+        following_ids.append(user.id)
+        posts = Post.objects.exclude(user__id__in=following_ids).annotate(
+            num_likes=Count('post_likes')
+            ).order_by('-num_likes')
         
-        final_posts.sort(key = lambda x: x.post_likes.count(), reverse=True)
-        serializer = PostListGlobalSerializer(final_posts, context={'request': request}, many=True)
-        results = self.paginate_queryset(serializer.data)
-        return self.get_paginated_response(results)
+        paginator = PaginateBy15()
+        result_page = paginator.paginate_queryset(posts, request)
+        serializer = self.serializer_class(result_page, context={'request': request}, many=True)
+        return paginator.get_paginated_response(serializer.data, )
+
 
 
 class SendPostView(APIView):
