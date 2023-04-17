@@ -1,6 +1,7 @@
 import random
 from django.shortcuts import get_object_or_404
 from django.db import connection, reset_queries
+from django.db.models import Q
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,11 +9,11 @@ from .serializers import (
     UserRegistrationSerializer, ProfileSerializer, ListOfFollowersSerializer, ListOfFollowingSerializer,
     EditProfileSerializer, ChangePasswordSerializer, StorySerializer, EditProfilePhotoSerializer,
     ListForSendPostSerializer, UserSuggestionSerializer, UserActivitiesSerializer, GetCodeSerializer,
-    UserInformationSerializer
+    UserInformationSerializer, SearchUserSerializer
 )
 from post.serializers import PostListProfileSerializer
-from .models import StoryViews, User, Story, Activities, OtpCode
-from .paginations import PaginateBy6, PaginateBy10
+from .models import StoryViews, User, Story, Activity, OtpCode
+from paginations import PaginateBy6, PaginateBy10
 from utils import send_otp_code, is_user_allowed
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
@@ -436,9 +437,9 @@ class FollowView(APIView):
         auth_user = request.user
         user = get_object_or_404(User, id=user_id)
         if not Follow.objects.filter(from_user=auth_user, to_user=user).exists():
-            if not Activities.objects.filter(from_user=auth_user, to_user=user, follow=True).exists():
+            if not Activity.objects.filter(from_user=auth_user, to_user=user, follow=True).exists():
                 if user != auth_user:
-                    Activities.objects.create(
+                    Activity.objects.create(
                         from_user=auth_user, to_user=user, follow=True
                     )
             Follow.objects.create(from_user=auth_user, to_user=user)
@@ -453,8 +454,8 @@ class UnFollowView(APIView):
         auth_user = request.user
         user = get_object_or_404(User, id=user_id)
         if Follow.objects.filter(from_user=auth_user, to_user=user).exists():
-            if Activities.objects.filter(from_user=auth_user, to_user=user, follow=True).exists():
-                Activities.objects.get(from_user=auth_user, to_user=user, follow=True).delete()
+            if Activity.objects.filter(from_user=auth_user, to_user=user, follow=True).exists():
+                Activity.objects.get(from_user=auth_user, to_user=user, follow=True).delete()
             Follow.objects.get(from_user=auth_user, to_user=user).delete()
             return Response(status=200)
         return Response(status=404)
@@ -502,9 +503,37 @@ class UserSuggestionView(APIView):
         return Response(serializer.data, status=200)
 
 
+
 class UserActivities(APIView):
+    """
+    `User activities` are returned.
+    """
+    
+    permission_classes = (IsAuthenticated,)
+    serializer_class = UserActivitiesSerializer
+
     def get(self, request):
-        activity = Activities.objects.filter(to_user=request.user)
-        serializer = UserActivitiesSerializer(activity, many=True)
+        activities = Activity.objects.select_related('from_user').filter(to_user=request.user)
+
+        paginator = PaginateBy10()
+        result_page = paginator.paginate_queryset(activities, request)
+        serializer = self.serializer_class(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+
+class SearchUserView(APIView):
+    """
+    Receive: a `word`\n
+    Then a `list of users` who have this word in their `username` or `name` is returned.
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = SearchUserSerializer
+
+    def get(self, request, word):
+        users = User.objects.order_by('id').filter(Q(username__icontains=word) | Q(name__icontains=word))
+        serializer = self.serializer_class(users, many=True)
         return Response(serializer.data, status=200)
+
 

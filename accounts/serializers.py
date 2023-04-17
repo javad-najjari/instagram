@@ -1,9 +1,10 @@
+from datetime import datetime
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
-from .models import Story, StoryViews, Activities
+from .models import Story, StoryViews, Activity
 from follow.models import Follow
 from django.contrib.auth import get_user_model
-from utils import validate_profile_photo_size
+from utils import validate_profile_photo_size, elapsed_time
 
 
 
@@ -287,12 +288,14 @@ class UserActivity(serializers.ModelSerializer):
         fields = ('id', 'username', 'profile_photo')
 
 
+
 class UserActivitiesSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
+    created = serializers.SerializerMethodField()
 
     class Meta:
-        model = Activities
-        fields = ('user', 'follow', 'like')
+        model = Activity
+        fields = ('user', 'text', 'created')
     
     def get_user_photo(self, obj):
         user = obj.from_user
@@ -308,4 +311,23 @@ class UserActivitiesSerializer(serializers.ModelSerializer):
         user = obj.from_user
         user = UserActivity(user)
         return user.data
+    
+    def get_created(self, obj):
+        e_time = datetime.utcnow() - obj.created.replace(tzinfo=None)
+        t = int(e_time.total_seconds())
+        return elapsed_time(t)
+
+
+class SearchUserSerializer(serializers.ModelSerializer):
+    profile_photo = serializers.SerializerMethodField()
+
+    class Meta:
+        model = get_user_model()
+        fields = ('name', 'username', 'profile_photo')
+    
+    def get_profile_photo(self, obj):
+        photo = obj.profile_photo
+        if photo:
+            return photo.url
+        return None
 

@@ -88,6 +88,7 @@ class Story(models.Model):
     get_time.short_description = 'elapsed time'
 
 
+
 class StoryViews(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_story_view')
     story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name='story_views')
@@ -100,21 +101,19 @@ class StoryViews(models.Model):
     get_story.short_description = 'story'
 
 
-class Activities(models.Model):
+
+class Activity(models.Model):
     from_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='my_activities')
     to_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
-    follow = models.BooleanField(default=False)
-    like = models.BooleanField(default=False)
-    post_id = models.CharField(max_length=200, null=True, blank=True)
+    text = models.CharField(max_length=200)
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ('-created',)
+        verbose_name_plural = 'activities'
     
     def __str__(self):
-        if self.follow:
-            return f'{self.from_user} - {self.to_user} : Follow'
-        return f'{self.from_user} - {self.to_user} : Like'
+        return self.text
 
 
 
@@ -133,6 +132,7 @@ class OtpCode(models.Model):
 
     def __str__(self):
         return self.email
+
 
 
 from follow.models import Follow

@@ -2,14 +2,14 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .serializers import (
     PostDetailSerializer, CommentCreateSerializer, PostWithoutCommentsSerializer, PostExploreSerializer,
-    SearchUserSerializer, CreatePostSerializer
+    CreatePostSerializer
 )
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Post, File, Comment, PostLike, PostSave
-from .paginations import PaginateBy5, PaginateBy10, PaginateBy15
+from paginations import PaginateBy5, PaginateBy15
 from direct.models import Message, Direct
-from accounts.models import User, Activities
+from accounts.models import User, Activity
 from django.db import connection, reset_queries
 from django.db.models import Q, Count
 
@@ -119,16 +119,17 @@ class LikePostView(APIView):
         user = request.user
         post = get_object_or_404(Post, id=post_id)
         if PostLike.objects.filter(user=user, post=post).exists():
-            if Activities.objects.filter(from_user=user, to_user=post.user, post_id=post.id, like=True).exists():
-                Activities.objects.get(from_user=user, to_user=post.user, post_id=post.id, like=True).delete()
+            if Activity.objects.filter(from_user=user, to_user=post.user, post_id=post.id, like=True).exists():
+                Activity.objects.get(from_user=user, to_user=post.user, post_id=post.id, like=True).delete()
             PostLike.objects.get(user=user, post=post).delete()
             return Response(status=200)
         if user != post.user:
-            Activities.objects.create(
+            Activity.objects.create(
                 from_user=user, to_user=post.user, post_id=post.id, like=True
             )
         PostLike.objects.create(user=user, post=post)
         return Response(status=200)
+
 
 
 class LikePostDoubleClickView(APIView):
@@ -139,8 +140,8 @@ class LikePostDoubleClickView(APIView):
         post = get_object_or_404(Post, id=post_id)
         if not PostLike.objects.filter(user=user, post=post).exists():
             if user != post.user:
-                if not Activities.objects.filter(from_user=user, to_user=post.user, post_id=post.id, like=True).exists():
-                    Activities.objects.create(
+                if not Activity.objects.filter(from_user=user, to_user=post.user, post_id=post.id, like=True).exists():
+                    Activity.objects.create(
                         from_user=user, to_user=post.user, post_id=post.id, like=True
                     )
             PostLike.objects.create(user=user, post=post)
@@ -220,20 +221,4 @@ class SendPostView(APIView):
         direct = Direct.objects.get(Q(user1=auth_user, user2=to_user) | Q(user1=to_user, user2=auth_user))
         Message.objects.create(user=auth_user, direct=direct, post=post)
         return Response(status=201)
-
-
-
-class SearchUserView(APIView):
-    """
-    Receive: a `word`\n
-    Then a `list of users` who have this word in their `username` or `name` is returned.
-    """
-
-    permission_classes = (IsAuthenticated,)
-    serializer_class = SearchUserSerializer
-
-    def get(self, request, word):
-        users = User.objects.order_by('id').filter(Q(username__icontains=word) | Q(name__icontains=word))
-        serializer = self.serializer_class(users, many=True)
-        return Response(serializer.data, status=200)
 

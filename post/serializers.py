@@ -222,17 +222,3 @@ class PostSendDirectSerializer(serializers.ModelSerializer):
         serializer = FileSerializer(file)
         return serializer.data
 
-
-class SearchUserSerializer(serializers.ModelSerializer):
-    profile_photo = serializers.SerializerMethodField()
-
-    class Meta:
-        model = User
-        fields = ('name', 'username', 'profile_photo')
-    
-    def get_profile_photo(self, obj):
-        photo = obj.profile_photo
-        if photo:
-            return photo.url
-        return None
-
