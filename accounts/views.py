@@ -14,7 +14,7 @@ from .serializers import (
 from post.serializers import PostListProfileSerializer
 from .models import StoryViews, User, Story, Activity, OtpCode
 from paginations import PaginateBy6, PaginateBy10
-from utils import send_otp_code, is_user_allowed
+from utils import send_otp_code, is_user_allowed, activity_text_follow
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -141,7 +141,7 @@ class CustomizeTokenRefreshView(TokenRefreshView):
 # TODO: the access_token must also expire
 class LogoutView(APIView):
     """
-    Retrieve: `refresh_tokeh`\n
+    Receive: `refresh_tokeh`\n
     Note: The `access token` must be removed from the user header.\n
     Then the user will be logged out.
     """
@@ -178,7 +178,6 @@ class ProfileView(APIView):
         profile_serializer = self.serializer_class(
             user, context={'full_access_to_profile': full_access_to_profile, 'is_owner': is_owner, 'request': request}
         )
-        print(f'{"*"*50} {len(connection.queries)} {"*"*50}')
         return Response(profile_serializer.data, status=200)
 
 
@@ -356,7 +355,6 @@ class ChangePasswordView(APIView):
             
             user.set_password(value['password1'])
             user.save()
-            print(f'{"*"*50} {len(connection.queries)} {"*"*50}')
             return Response('Password changed successfully.', status=200)
             
         return Response(serializer.errors, status=400)
@@ -430,35 +428,33 @@ class RemoveStoryView(APIView):
         return Response(status=401)
 
 
+
 class FollowView(APIView):
+    """
+    Receive: `user_id`\n
+    If he has not followed the user, a follow will be created and if he is following, the follow will be deleted.
+    """
+
     permission_classes = (IsAuthenticated,)
 
-    def get(self, request, user_id):
+    def post(self, request, user_id):
         auth_user = request.user
-        user = get_object_or_404(User, id=user_id)
-        if not Follow.objects.filter(from_user=auth_user, to_user=user).exists():
-            if not Activity.objects.filter(from_user=auth_user, to_user=user, follow=True).exists():
-                if user != auth_user:
-                    Activity.objects.create(
-                        from_user=auth_user, to_user=user, follow=True
-                    )
-            Follow.objects.create(from_user=auth_user, to_user=user)
-            return Response(status=201)
-        return Response(status=400)
+        user = User.objects.filter(id=user_id).first()
+        if not user:
+            return Response('User not found.', status=404)
+        
+        if auth_user == user:
+            return Response('You can not follow yourself', status=400)
+        
+        follow, created = Follow.objects.get_or_create(from_user=auth_user, to_user=user)
 
+        if not created:
+            follow.delete()
+            return Response('Unfollowed.', status=204)
+        
+        Activity.objects.get_or_create(from_user=auth_user, to_user=user, text=activity_text_follow(auth_user))
+        return Response('Followed.', status=201)
 
-class UnFollowView(APIView):
-    permission_classes = (IsAuthenticated,)
-
-    def get(self, request, user_id):
-        auth_user = request.user
-        user = get_object_or_404(User, id=user_id)
-        if Follow.objects.filter(from_user=auth_user, to_user=user).exists():
-            if Activity.objects.filter(from_user=auth_user, to_user=user, follow=True).exists():
-                Activity.objects.get(from_user=auth_user, to_user=user, follow=True).delete()
-            Follow.objects.get(from_user=auth_user, to_user=user).delete()
-            return Response(status=200)
-        return Response(status=404)
 
 
 class RemoveFollowerView(APIView):
@@ -482,24 +478,23 @@ class ListForSendPostView(APIView):
         return Response(serializer.data, status=200)
 
 
+
 class UserSuggestionView(APIView):
+    """
+    A list of `suggested users` is returned.\n
+    For each user, the list of users who follow him and the auth_user also follows them is displayed
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = UserSuggestionSerializer
+
     def get(self, request):
         user = request.user
-        following = user.following.all()
-        users = []
-        for following in following:
-            for end_user in following.to_user.following.all():
-                if not Follow.objects.filter(from_user=user, to_user=end_user.to_user).exists() and end_user.to_user != user:
-                    if end_user.to_user not in users:
-                        users.append(end_user.to_user)
-        final_users = sorted(users, key=lambda x:users.count(x), reverse=True)
-        # for item in final_users:
-        #     if final_users.count(item) > 1:
-        #         final_users.remove(item)
-        if len(final_users) > 4:
-            final_users = final_users[:5]
-        
-        serializer = UserSuggestionSerializer(final_users, context={'request': request}, many=True)
+        following_ids = list(user.following.select_related('to_user').values_list('to_user__id', flat=True))
+        following_ids.append(user.id)
+        users = random.sample(list(User.objects.exclude(id__in=following_ids)), 5)
+
+        serializer = self.serializer_class(users, context={'following_ids': following_ids}, many=True)
         return Response(serializer.data, status=200)
 
 

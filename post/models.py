@@ -1,8 +1,7 @@
-from django.db import models
-from django.db.models import Case, Count, Exists, OuterRef, When
-from accounts.models import User
-from datetime import datetime
 import os
+from datetime import datetime
+from django.db import models
+from accounts.models import User
 
 
 
@@ -39,6 +38,7 @@ class Post(models.Model):
     get_views.short_description = 'views'
 
 
+
 class File(models.Model):
     page = models.FileField(upload_to='post')
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='files')
@@ -63,13 +63,12 @@ class File(models.Model):
     get_post.short_description = 'post'
 
 
+
 class Comment(models.Model):
-    # to_comment = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies', verbose_name='reply to this comment')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_comments')
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='post_comments', verbose_name='to post')
     body = models.TextField(max_length=500)
     created = models.DateTimeField(auto_now_add=True)
-    # is_reply = models.BooleanField(default=False)
 
 
     def __str__(self):
@@ -78,6 +77,7 @@ class Comment(models.Model):
     def short_body(self):
         return self.body[:30] + ' ...'
     short_body.short_description = 'message text'
+
 
 
 class PostLike(models.Model):
@@ -90,6 +90,7 @@ class PostLike(models.Model):
         return f'{self.user} - ({self.post.user}) NO CAPTION ...'
 
 
+
 class PostSave(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_saves')
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='post_saves')
@@ -99,13 +100,6 @@ class PostSave(models.Model):
             return f'{self.user} - ({self.post.user}) {self.post.caption[:30]} ...'
         return f'{self.user} - ({self.post.user}) NO CAPTION ...'
 
-
-class CommentLike(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_comment_likes')
-    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='comment_likes')
-
-    def __str__(self):
-        return f'{self.user} - {self.comment}'
 
 
 class PostViews(models.Model):

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import File, Post, Comment, CommentLike, PostLike, PostSave, PostViews
+from .models import File, Post, Comment, PostLike, PostSave, PostViews
 
 
 
@@ -15,9 +15,6 @@ class PostAdmin(admin.ModelAdmin):
 class CommentAdmin(admin.ModelAdmin):
     list_display = ('user', 'post', 'short_body')
 
-
-class CommentLikeAdmin(admin.ModelAdmin):
-    list_display = ('user', 'comment')
 
 
 class PostLikeAdmin(admin.ModelAdmin):
@@ -35,7 +32,6 @@ class PostViewsAdmin(admin.ModelAdmin):
 admin.site.register(File, FileAdmin)
 admin.site.register(Post, PostAdmin)
 admin.site.register(Comment, CommentAdmin)
-admin.site.register(CommentLike, CommentLikeAdmin)
 admin.site.register(PostLike, PostLikeAdmin)
 admin.site.register(PostSave, PostSaveAdmin)
 admin.site.register(PostViews, PostViewsAdmin)

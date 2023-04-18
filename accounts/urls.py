@@ -24,11 +24,10 @@ urlpatterns = [
     # path('story/<str:username>/', views.StoryView.as_view()),
     # path('story/', views.CreateStoryView.as_view()),
     # path('remove-story/<int:story_id>/', views.RemoveStoryView.as_view()),
-    # path('follow/<int:user_id>/', views.FollowView.as_view()),
-    # path('unfollow/<int:user_id>/', views.UnFollowView.as_view()),
+    path('accounts/follow/<int:user_id>/', views.FollowView.as_view()),
     # path('remove-follower/<int:user_id>/', views.RemoveFollowerView.as_view()),
     # path('list-for-send-post/', views.ListForSendPostView.as_view()),
-    # path('suggestion/', views.UserSuggestionView.as_view()),
+    path('accounts/suggestion/', views.UserSuggestionView.as_view()),
     path('accounts/activities/', views.UserActivities.as_view()),
 
 ]

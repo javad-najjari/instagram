@@ -227,6 +227,7 @@ class UserSearchSerializer(serializers.ModelSerializer):
         fields = ('profile_photo', 'username', 'name')
 
 
+
 class ListForSendPostSerializer(serializers.ModelSerializer):
     username = serializers.SerializerMethodField()
     profile_photo = serializers.SerializerMethodField()
@@ -249,11 +250,13 @@ class ListForSendPostSerializer(serializers.ModelSerializer):
         return obj.to_user.id
 
 
+
 class UserListSuggestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = get_user_model()
         fields = ('username',)
+
 
 
 class UserSuggestionSerializer(serializers.ModelSerializer):
@@ -271,14 +274,14 @@ class UserSuggestionSerializer(serializers.ModelSerializer):
         return None
 
     def get_followed_by(self, obj):
-        auth_user = self.context['request'].user
-        users = []
-        for follower in obj.followers.all():
-            # if follower in auth_user.following.all():
-            if Follow.objects.filter(from_user=auth_user, to_user=follower.from_user).exists():
-                users.append(follower.from_user)
+        following_ids = self.context.get('following_ids')
+        obj_follower_ids = list(obj.followers.select_related('from_user').values_list('from_user__id', flat=True))
+        final_ids = list(set(following_ids) & set(obj_follower_ids))
+        users = get_user_model().objects.filter(id__in=final_ids)
+
         serializer = UserListSuggestionSerializer(users, many=True)
         return serializer.data
+
 
 
 class UserActivity(serializers.ModelSerializer):
@@ -316,6 +319,7 @@ class UserActivitiesSerializer(serializers.ModelSerializer):
         e_time = datetime.utcnow() - obj.created.replace(tzinfo=None)
         t = int(e_time.total_seconds())
         return elapsed_time(t)
+
 
 
 class SearchUserSerializer(serializers.ModelSerializer):

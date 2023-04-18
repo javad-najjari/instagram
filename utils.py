@@ -47,3 +47,11 @@ def elapsed_time(time):
         return '1 week'
     return f'{time // 604800} weeks'
 
+
+def activity_text_follow(user):
+    return f'{user.name} started following you'
+
+
+def activity_text_like(user):
+    return f'{user} liked your post'
+

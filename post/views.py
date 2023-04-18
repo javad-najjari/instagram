@@ -12,6 +12,7 @@ from direct.models import Message, Direct
 from accounts.models import User, Activity
 from django.db import connection, reset_queries
 from django.db.models import Q, Count
+from utils import is_user_allowed, activity_text_like
 
 
 
@@ -113,80 +114,130 @@ class HomeView(APIView):
 
 
 class LikePostView(APIView):
+
+    """
+    Receive: `post_id`\n
+    If he has not liked the post, a like will be created and if he has liked, the like will be deleted.
+    """
+
     permission_classes = (IsAuthenticated,)
 
-    def get(self, request, post_id):
-        user = request.user
-        post = get_object_or_404(Post, id=post_id)
-        if PostLike.objects.filter(user=user, post=post).exists():
-            if Activity.objects.filter(from_user=user, to_user=post.user, post_id=post.id, like=True).exists():
-                Activity.objects.get(from_user=user, to_user=post.user, post_id=post.id, like=True).delete()
-            PostLike.objects.get(user=user, post=post).delete()
-            return Response(status=200)
-        if user != post.user:
-            Activity.objects.create(
-                from_user=user, to_user=post.user, post_id=post.id, like=True
-            )
-        PostLike.objects.create(user=user, post=post)
-        return Response(status=200)
+    def post(self, request, post_id):
+        auth_user = request.user
+        post = Post.objects.select_related('user').filter(id=post_id).first()
+        if not post:
+            return Response('Post not found.', status=404)
+        
+        user = post.user
+        like, created = PostLike.objects.get_or_create(user=auth_user, post=post)
+
+        if not created:
+            like.delete()
+            return Response('Unliked.', status=204)
+        
+        Activity.objects.get_or_create(from_user=auth_user, to_user=user, text=activity_text_like(auth_user))
+        return Response('Liked.', status=201)
 
 
 
 class LikePostDoubleClickView(APIView):
-    permission_classes = (IsAuthenticated,)
+    """
+    Receive: `post_id`\n
+    If he has not liked the post, a like will be created.
+    """
 
-    def get(self, request, post_id):
-        user = request.user
-        post = get_object_or_404(Post, id=post_id)
-        if not PostLike.objects.filter(user=user, post=post).exists():
-            if user != post.user:
-                if not Activity.objects.filter(from_user=user, to_user=post.user, post_id=post.id, like=True).exists():
-                    Activity.objects.create(
-                        from_user=user, to_user=post.user, post_id=post.id, like=True
-                    )
-            PostLike.objects.create(user=user, post=post)
-            return Response(status=200)
-        return Response(status=100)
-
-
-class SavePostView(APIView):
-    permission_classes = (IsAuthenticated,)
-
-    def get(self, request, post_id):
-        user = request.user
-        post = get_object_or_404(Post, id=post_id)
-        if not PostSave.objects.filter(user=user, post=post).exists():
-            PostSave.objects.create(user=user, post=post)
-            return Response(status=200)
-        PostSave.objects.get(user=user, post=post).delete()
-        return Response(status=200)
-
-
-class CreateCommentView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request, post_id):
-        serializer = CommentCreateSerializer(data=request.data)
-        post = get_object_or_404(Post, id=post_id)
+        auth_user = request.user
+        post = Post.objects.select_related('user').filter(id=post_id).first()
+        if not post:
+            return Response('Post not found.', status=404)
+        
+        user = post.user
+        _ , created = PostLike.objects.get_or_create(user=auth_user, post=post)
+
+        if not created:
+            Activity.objects.get_or_create(from_user=auth_user, to_user=user, text=activity_text_like(auth_user))
+        
+        return Response('Liked.', status=201)
+
+
+
+class SavePostView(APIView):
+    """
+    Receive: `post_id`\n
+    If the post has not been saved, it will be saved, and if it has not been saved, it will be saved.
+    """
+
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, post_id):
+        user = request.user
+        post = Post.objects.select_related('user').filter(id=post_id).first()
+        post_save = PostSave.objects.filter(user=user, post=post).first()
+
+        if not post:
+            return Response('Post not found.', status=404)
+        
+        if not is_user_allowed(user, post.user):
+            return Response('You are not allowed to save this post.', status=401)
+        
+        if not post_save:
+            PostSave.objects.create(user=user, post=post)
+            return Response('Post saved.', status=200)
+        
+        post_save.delete()
+        return Response('Post unsaved.', status=200)
+
+
+
+class CreateCommentView(APIView):
+    """
+    Receive: `post_id` in url and the `body` key in body\n
+    Then if the user `is allowed` to comment on this post, the `comment` will be created
+    """
+
+    permission_classes = (IsAuthenticated,)
+    serializer_class = CommentCreateSerializer
+
+    def post(self, request, post_id):
+        user = request.user
+        serializer = self.serializer_class(data=request.data)
+        post = Post.objects.select_related('user').filter(id=post_id).first()
+
+        if not post:
+            return Response('Post not found.', status=404)
+
+        if not is_user_allowed(user, post.user):
+            return Response('You are not allowed to comment on this post.', status=401)
+        
         if serializer.is_valid():
-            Comment.objects.create(
-                user = request.user, body = serializer.validated_data['body'],
-                post = post
-            )
-            return Response(serializer.data, status=201)
+            Comment.objects.create(user=user, body=serializer.validated_data['body'], post=post)
+            return Response('Comment created.', status=201)
         return Response(serializer.errors, status=400)
 
 
 
 class RemoveCommentView(APIView):
+    """
+    Receive: comment_id\n
+    Then, if the `auth_uesr = the user who created the comment` or the `auth_user = the user who created the post`,
+    the comment will be deleted.
+    """
+
     permission_classes = (IsAuthenticated,)
 
-    def get(self, request, comment_id):
-        comment = get_object_or_404(Comment, id=comment_id)
-        if request.user == comment.user or request.user == comment.post.user:
+    def delete(self, request, comment_id):
+        user = request.user
+        comment = Comment.objects.select_related('user', 'post__user').filter(id=comment_id).first()
+        if not comment:
+            return Response('Comment not found.', status=404)
+
+        if (user == comment.user) or (user == comment.post.user):
             comment.delete()
-            return Response(status=200)
-        return Response(status=401)
+            return Response('Comment deleted.', status=204)
+        return Response('You are not allowed to delete this comment.', status=401)
 
 
 
