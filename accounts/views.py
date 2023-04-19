@@ -3,6 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.db import connection, reset_queries
 from django.db.models import Q
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import (
@@ -458,14 +459,20 @@ class FollowView(APIView):
 
 
 class RemoveFollowerView(APIView):
+    """
+    Receive: `user_id`\n
+    Then the follower will be deleted.
+    """
+
     permission_classes = (IsAuthenticated,)
 
     def delete(self, request, user_id):
-        user = get_object_or_404(User, id=user_id)
-        if Follow.objects.filter(from_user=user, to_user=request.user).exists():
-            Follow.objects.get(from_user=user, to_user=request.user).delete()
-            return Response(status=200)
-        return Response(ststus=404)
+        follow = Follow.objects.filter(from_user__id=user_id, to_user=request.user).first()
+        if follow:
+            follow.delete()
+            return Response('The user deleted from your followers.', status=200)
+        return Response('The user is not following you.', status=404)
+
 
 
 class ListForSendPostView(APIView):
