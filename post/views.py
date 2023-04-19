@@ -80,9 +80,8 @@ class PostDetailView(APIView):
     serializer_class = PostDetailSerializer
 
     def get(self, request, post_id):
-        try:
-            post = Post.objects.get(id=post_id)
-        except Post.DoesNotExist:
+        post = Post.objects.filter(id=post_id).first()
+        if not post:
             return Response('Post not found.', status=404)
         
         serializer = self.serializer_class(post, context={'request': request})

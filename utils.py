@@ -1,4 +1,4 @@
-import smtplib
+import os, smtplib
 from django.conf import settings
 from email.message import EmailMessage
 from rest_framework.exceptions import ValidationError
@@ -33,19 +33,19 @@ def elapsed_time(time):
         return f'{time} seconds'
     elif time < 3600:
         if time // 60 == 1:
-            return '1 minutimee'
-        return f'{time//60} minutimees'
+            return '1 minute'
+        return f'{int(time//60)} minutes'
     elif time < 86400:
         if time // 3600 == 1:
             return '1 hour'
-        return f'{time // 3600} hours'
+        return f'{int(time // 3600)} hours'
     elif time < 604800:
         if time // 86400 == 1:
             return '1 day'
-        return f'{time // 86400} days'
+        return f'{int(time // 86400)} days'
     elif time // 604800 == 1:
         return '1 week'
-    return f'{time // 604800} weeks'
+    return f'{int(time // 604800)} weeks'
 
 
 def activity_text_follow(user):

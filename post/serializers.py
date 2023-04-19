@@ -32,29 +32,22 @@ class CreatePostSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     user = UserPostDetailSerializer()
-    comment_likes = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
-    # replies = serializers.SerializerMethodField()
+    created = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
-        fields = ('id', 'user', 'body', 'created', 'comment_likes', 'can_delete')
-    
-    # def get_replies(self, obj):
-    #     if obj.replies.count() != 0:
-    #         replies = obj.replies.all()
-    #         serializer = CommentSerializer(replies, many=True)
-    #         return serializer.data
-    #     else:
-    #         return None
-    
-    def get_comment_likes(self, obj):
-        return obj.comment_likes.count()
+        fields = ('id', 'user', 'body', 'created', 'can_delete')
     
     def get_can_delete(self, obj):
         if self.context['auth_user'] == obj.user or self.context['auth_user'] == self.context['post_user']:
             return True
         return False
+    
+    def get_created(self, obj):
+        e_time = datetime.utcnow() - obj.created.replace(tzinfo=None)
+        return elapsed_time(e_time.total_seconds())
+
 
 
 class CommentCreateSerializer(serializers.ModelSerializer):
