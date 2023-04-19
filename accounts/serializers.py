@@ -20,11 +20,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'username': {'validators': [UniqueValidator(queryset=get_user_model().objects.all())],},
             'email': {'validators': [UniqueValidator(queryset=get_user_model().objects.all())]},
         }
-    
+
     def create(self, validated_data):
         del validated_data['password2']
         return get_user_model().objects.create_user(**validated_data)
-    
+
     def validate(self, data):
         if data['password'] != data['password2']:
             raise serializers.ValidationError('passwords must be match !!!')
@@ -52,27 +52,27 @@ class ProfileSerializer(serializers.ModelSerializer):
             'id', 'username', 'name', 'is_owner', 'posts_count', 'followers_count', 'following_count', 'profile_photo',
             'bio', 'full_access_to_profile', 'is_following'
         )
-    
+
     def get_is_owner(self, obj):
         return self.context.get('is_owner')
 
     def get_followers_count(self, obj):
         return obj.followers.count()
-    
+
     def get_following_count(self, obj):
         return obj.following.count()
-    
+
     def get_posts_count(self, obj):
         return obj.user_posts.count()
-    
+
     def get_full_access_to_profile(self, obj):
         return self.context.get('full_access_to_profile')
-    
+
     def get_profile_photo(self, obj):
         photo = obj.profile_photo
         if photo:
             return photo.url
-    
+
     def get_is_following(self, obj):
         auth_user = self.context.get('request').user
         if Follow.objects.filter(from_user=auth_user, to_user=obj).exists():
@@ -96,7 +96,7 @@ class EditProfileSerializer(serializers.ModelSerializer):
 
 class EditProfilePhotoSerializer(serializers.ModelSerializer):
     profile_photo = serializers.ImageField(validators=[validate_profile_photo_size])
-    
+
     class Meta:
         model = get_user_model()
         fields = ('profile_photo',)
@@ -113,14 +113,14 @@ class ListOfFollowersSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = ('id', 'username', 'name', 'profile_photo', 'is_following', 'user_id')
-    
+
     def get_profile_photo(self, obj):
         photo = obj.from_user.profile_photo
         if photo:
             return photo.url
-    
+
     def get_is_following(self, obj):
-        user = obj.to_user
+        user = obj.from_user
         if Follow.objects.filter(from_user=self.context['request'].user, to_user=user).exists():
             return True
         elif self.context['request'].user == user:
@@ -139,12 +139,12 @@ class ListOfFollowingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = ('id', 'username', 'name', 'profile_photo', 'is_following', 'user_id')
-    
+
     def get_profile_photo(self, obj):
         photo = obj.to_user.profile_photo
         if photo:
             return photo.url
-    
+
     def get_is_following(self, obj):
         user = obj.to_user
         if Follow.objects.filter(from_user=self.context['request'].user, to_user=user).exists():
@@ -175,8 +175,8 @@ class UserPostDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = ('profile_photo', 'name', 'username')
-    
+        fields = ('id', 'profile_photo', 'name', 'username')
+
     def get_profile_photo(self, obj):
         photo = obj.profile_photo
         if photo:
@@ -194,7 +194,7 @@ class StorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Story
         fields = ('id', 'user', 'file', 'created', 'views', 'views_count', 'extension', 'has_seen')
-    
+
     def get_views(self, obj):
         auth_user = self.context['request'].user
         if auth_user == obj.user:
@@ -205,13 +205,13 @@ class StorySerializer(serializers.ModelSerializer):
             serializer = UserPostDetailSerializer(final_users, many=True)
             return serializer.data
         return False
-    
+
     def get_views_count(self, obj):
         auth_user = self.context['request'].user
         if auth_user == obj.user:
             return obj.story_views.count()
         return False
-    
+
     def get_has_seen(self, obj):
         auth_user = self.context['request'].user
         if StoryViews.objects.filter(user=auth_user, story=obj).exists():
@@ -236,16 +236,16 @@ class ListForSendPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = ('username', 'profile_photo', 'user_id')
-    
+
     def get_username(self, obj):
         return obj.to_user.username
-    
+
     def get_profile_photo(self, obj):
         photo = obj.to_user.profile_photo
         if photo:
             return photo.url
         return None
-    
+
     def get_user_id(self, obj):
         return obj.to_user.id
 
@@ -265,8 +265,8 @@ class UserSuggestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = ('username', 'profile_photo', 'followed_by')
-    
+        fields = ('id', 'username', 'profile_photo', 'followed_by')
+
     def get_profile_photo(self, obj):
         photo = obj.profile_photo
         if photo:
@@ -299,22 +299,22 @@ class UserActivitiesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
         fields = ('user', 'text', 'created')
-    
+
     def get_user_photo(self, obj):
         user = obj.from_user
         photo = user.profile_photo
         if photo:
             return photo.url
         return None
-    
+
     def get_username(self, obj):
         return obj.from_user.username
-    
+
     def get_user(self, obj):
         user = obj.from_user
         user = UserActivity(user)
         return user.data
-    
+
     def get_created(self, obj):
         e_time = datetime.utcnow() - obj.created.replace(tzinfo=None)
         t = int(e_time.total_seconds())
@@ -328,7 +328,7 @@ class SearchUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
         fields = ('name', 'username', 'profile_photo')
-    
+
     def get_profile_photo(self, obj):
         photo = obj.profile_photo
         if photo:

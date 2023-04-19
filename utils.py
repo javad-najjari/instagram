@@ -29,8 +29,10 @@ def is_user_allowed(auth_user, target_user):
 
 
 def elapsed_time(time):
-    if time < 60:
-        return f'{time} seconds'
+    if time < 1:
+        return 'right now'
+    elif time < 60:
+        return f'{int(time)} seconds'
     elif time < 3600:
         if time // 60 == 1:
             return '1 minute'
@@ -53,5 +55,5 @@ def activity_text_follow(user):
 
 
 def activity_text_like(user):
-    return f'{user} liked your post'
+    return f'{user.name} liked your post'
 

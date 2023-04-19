@@ -94,6 +94,7 @@ class PostLike(models.Model):
 class PostSave(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_saves')
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='post_saves')
+    created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         if self.post.caption:

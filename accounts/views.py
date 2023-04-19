@@ -221,7 +221,7 @@ class SavedPostsView(ListAPIView):
     pagination_class = PaginateBy6
 
     def get_queryset(self):
-        posts = self.request.user.user_saves.select_related('post').all()
+        posts = self.request.user.user_saves.select_related('post').all().order_by('-created')
         return [post.post for post in posts]
     
     def get_serializer_context(self):

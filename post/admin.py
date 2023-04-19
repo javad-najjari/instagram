@@ -22,7 +22,7 @@ class PostLikeAdmin(admin.ModelAdmin):
 
 
 class PostSaveAdmin(admin.ModelAdmin):
-    list_display = ('user', 'post')
+    list_display = ('user', 'post', 'created')
 
 
 class PostViewsAdmin(admin.ModelAdmin):
