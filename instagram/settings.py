@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django_celery_beat',
     'drf_spectacular',
     'rest_framework_simplejwt.token_blacklist',
+    'channels',
     
     'accounts.apps.AccountsConfig',
     'follow.apps.FollowConfig',

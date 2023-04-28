@@ -39,31 +39,23 @@ class GetCodeSerializer(serializers.Serializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     is_owner = serializers.SerializerMethodField()
-    posts_count = serializers.SerializerMethodField()
-    followers_count = serializers.SerializerMethodField()
-    following_count = serializers.SerializerMethodField()
+    posts_count = serializers.IntegerField(source='user_posts.count')
+    followers_count = serializers.IntegerField(source='followers.count')
+    following_count = serializers.IntegerField(source='following.count')
     full_access_to_profile = serializers.SerializerMethodField()
     profile_photo = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
+    followed_by = serializers.SerializerMethodField()
 
     class Meta:
         model = get_user_model()
         fields = (
             'id', 'username', 'name', 'is_owner', 'posts_count', 'followers_count', 'following_count', 'profile_photo',
-            'bio', 'full_access_to_profile', 'is_following'
+            'bio', 'full_access_to_profile', 'is_following', 'followed_by'
         )
 
     def get_is_owner(self, obj):
         return self.context.get('is_owner')
-
-    def get_followers_count(self, obj):
-        return obj.followers.count()
-
-    def get_following_count(self, obj):
-        return obj.following.count()
-
-    def get_posts_count(self, obj):
-        return obj.user_posts.count()
 
     def get_full_access_to_profile(self, obj):
         return self.context.get('full_access_to_profile')
@@ -80,6 +72,17 @@ class ProfileSerializer(serializers.ModelSerializer):
         elif auth_user == obj:
             return None
         return False
+    
+    def get_followed_by(self, obj):
+        auth_user = self.context.get('request').user
+        if auth_user != obj:
+            auth_following_ids = list(auth_user.following.select_related('to_user').values_list('to_user__id', flat=True))
+            obj_follower_ids = list(obj.followers.select_related('from_user').values_list('from_user__id', flat=True))
+            final_ids = list(set(auth_following_ids) & set(obj_follower_ids))
+            users = get_user_model().objects.filter(id__in=final_ids)
+            serializer = UserInformationSerializer(users, many=True)
+            return serializer.data
+        return None
 
 
 
