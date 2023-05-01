@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Post, File, Comment, PostLike, PostSave
 from paginations import PaginateBy5, PaginateBy15
-from direct.models import Message, Direct
+from direct.models import Message
 from accounts.models import User, Activity
 from django.db import connection, reset_queries
 from django.db.models import Q, Count
@@ -263,12 +263,12 @@ class ExploreView(APIView):
 
 
 
-class SendPostView(APIView):
-    def post(self, request, post_id, user_id):
-        auth_user = request.user
-        to_user = get_object_or_404(User, id=user_id)
-        post = get_object_or_404(Post, id=post_id)
-        direct = Direct.objects.get(Q(user1=auth_user, user2=to_user) | Q(user1=to_user, user2=auth_user))
-        Message.objects.create(user=auth_user, direct=direct, post=post)
-        return Response(status=201)
+# class SendPostView(APIView):
+#     def post(self, request, post_id, user_id):
+#         auth_user = request.user
+#         to_user = get_object_or_404(User, id=user_id)
+#         post = get_object_or_404(Post, id=post_id)
+#         direct = Direct.objects.get(Q(user1=auth_user, user2=to_user) | Q(user1=to_user, user2=auth_user))
+#         Message.objects.create(user=auth_user, direct=direct, post=post)
+#         return Response(status=201)
 

@@ -1,11 +1,11 @@
 from django.contrib import admin
-from .models import Direct, Message
+from .models import Chat, Message
 
 
 
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('user', 'to_user', 'get_body', 'get_post', 'has_seen', 'elapsed_time')
+    list_display = ('author', 'content', 'related_chat', 'timestamp')
 
 
-admin.site.register(Direct)
+admin.site.register(Chat)
 admin.site.register(Message, MessageAdmin)
