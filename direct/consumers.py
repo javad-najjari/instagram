@@ -16,18 +16,16 @@ class ChatConsumer(WebsocketConsumer):
     def new_message(self, data):
         message = data['message']
         author = data['username']
-        room_name = data['room_name']
-        chat_model = Chat.objects.get(room_name=room_name)
+        chat_model = Chat.objects.get(id=data['chat_id'])
         user_model = User.objects.filter(username=author).first()
         if message != '':
             message_model = Message.objects.create(author=user_model, content=message, related_chat=chat_model)
             result = eval(self.message_serializer(message_model))
             self.send_to_chat_message(result)
 
-    ################
     def fetch_message(self, data):
-        chat = data['chat']
-        messages = Message.objects.filter(related_chat=chat).order_by('-timestamp')
+        chat_id = data['chat_id']
+        messages = Message.objects.filter(related_chat__id=chat_id).order_by('timestamp')
         messages_json = self.message_serializer(messages)
         content = {
             'message': eval(messages_json),
@@ -38,14 +36,14 @@ class ChatConsumer(WebsocketConsumer):
     # def image(self, data):
     #     self.send_to_chat_message(data)
     
-    ################
+    
     def message_serializer(self, qs):
         is_many = True if qs.__class__.__name__ == 'QuerySet' else False
         serializer = MessageSerializer(qs, many=is_many)
         content = JSONRenderer().render(serializer.data)
         return content
 
-    ################
+    
     def connect(self):
         self.chat = self.scope['url_route']['kwargs']['chat']
         self.chat_group_name = f'chat_{self.chat}'
@@ -56,14 +54,14 @@ class ChatConsumer(WebsocketConsumer):
         )
         self.accept()
 
-    ################
+    
     commands = {
         'new_message': new_message,
         'fetch_message': fetch_message,
         # 'img': image,
     }
 
-    ################
+    
     def disconnect(self, close_code):
         async_to_sync(self.channel_layer.group_discard)(
             self.chat_group_name,

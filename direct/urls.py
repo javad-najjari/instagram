@@ -4,6 +4,6 @@ from . import views
 
 
 urlpatterns = [
-    path('', views.Direct.as_view()),
-    path('<str:username>/', views.CreateChat.as_view(), name='room'),
+    path('', views.DirectList.as_view()),
+    path('<str:username>/', views.Direct.as_view(), name='room'),
 ]

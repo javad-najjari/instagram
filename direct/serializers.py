@@ -5,10 +5,14 @@ from .models import Message, Chat
 
 
 class MessageSerializer(serializers.ModelSerializer):
+    is_author = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ('__str__', 'author', 'content', 'timestamp')
+        fields = ('is_author', 'content')
+    
+    def get_is_author(self, obj):
+        return obj.author != self.context.get('obj_user')
 
 
 
@@ -25,16 +29,22 @@ class ChatSerializer(serializers.ModelSerializer):
         return serializer.data
 
 
+
 class ChatDetailSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
+    messages = serializers.SerializerMethodField()
 
     class Meta:
         model = Chat
-        fields = ('id', 'user',)
+        fields = ('user', 'messages')
     
     def get_user(self, obj):
-        obj_user = obj.members.exclude(id=self.context['user_id']).first()
+        obj_user = self.context.get('obj_user')
         serializer = UserInformationSerializer(obj_user)
         return serializer.data
-
+    
+    def get_messages(self, obj):
+        messages = Message.objects.filter(related_chat=obj)
+        serializer = MessageSerializer(messages, context={'obj_user': self.context.get('obj_user')}, many=True)
+        return serializer.data
 
