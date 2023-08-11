@@ -1,9 +1,6 @@
 import random
-from django.shortcuts import get_object_or_404
-from django.db import connection, reset_queries
 from django.db.models import Q
 from django.contrib.auth.password_validation import validate_password
-from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import (

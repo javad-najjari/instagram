@@ -11,7 +11,10 @@ class Chat(models.Model):
     members = models.ManyToManyField(User, blank=True)
 
     def __str__(self):
-        return self.members.first().username
+        members = self.members.all()
+        result = ' - '.join(m.username for m in members)
+        # return self.members.first().username
+        return result
 
 
 
